@@ -1,0 +1,12 @@
+{
+  "name": "com.thomastorp.defa-power",
+  "version": "0.3.1",
+  "private": true,
+  "description": "Homey Pro app for a DEFA Power charger over the CloudCharge API",
+  "main": "app.js",
+  "scripts": {
+    "validate": "homey app validate",
+    "run": "homey app run --remote",
+    "test": "node --test"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "0.3.1": {
+    "en": "New 'error cleared' trigger and 'has an error' condition. Restart/refresh moved to maintenance actions. Failed reads back off instead of retrying every poll, a logout that was already dead no longer reports failure, and assorted hardening.",
+    "no": "Ny «feilen er borte»-trigger og «har feil»-betingelse. Restart/oppdater flyttet til vedlikehold. Feilede lesinger venter i stedet for å prøve på hver polling, en utlogging som alt var død melder ikke lenger feil, og diverse herding."
+  },
+  "0.3.0": {
+    "en": "Robustness pass: charger settings writes are serialized, an expired charger session renews itself, connection drops mid-response no longer crash the app, quick status refresh after start/stop survives, and the charger is now classified as an EV charger in Homey Energy.",
+    "no": "Robusthetsrunde: innstillingsskrivinger til laderen serialiseres, en utløpt ladersesjon fornyer seg selv, forbindelsesbrudd midt i et svar krasjer ikke lenger appen, rask statusoppdatering etter start/stopp overlever, og laderen kategoriseres nå som elbillader i Homey Energy."
+  },
+  "0.2.2": {
+    "en": "Back to the original device icon.",
+    "no": "Tilbake til det opprinnelige enhetsikonet."
+  },
+  "0.2.1": {
+    "en": "Device icon and images redrawn to resemble the DEFA eRange IQ charger.",
+    "no": "Enhetsikon og bilder tegnet på nytt så de likner DEFA eRange IQ-laderen."
+  },
+  "0.2.0": {
+    "en": "Local control of the charger's own settings: charging current, Plug & Charge and offline charging. Log in again from the app settings, and pick which CloudCharge app session Homey occupies so your phone stops signing it out.",
+    "no": "Lokal styring av laderens egne innstillinger: ladestrøm, Plug & Charge og offline-lading. Logg inn på nytt fra appinnstillingene, og velg hvilken CloudCharge-sesjon Homey skal okkupere, så slutter mobilen å logge den ut."
+  },
+  "0.1.0": {
+    "en": "First version. Monitor and control a DEFA Power charger through the CloudCharge API.",
+    "no": "Første versjon. Overvåk og styr en DEFA Power-lader gjennom CloudCharge-API-et."
+  }
+}

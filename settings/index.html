@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script type="text/javascript" src="/homey.js" data-origin="settings"></script>
+  <style>
+    body { font-family: -apple-system, system-ui, sans-serif; margin: 0; padding: 16px; }
+    h2 { margin: 22px 0 4px; font-size: 17px; }
+    h2:first-child { margin-top: 0; }
+    p.hint { margin: 0 0 14px; color: #666; font-size: 13px; line-height: 1.45; }
+    dl { margin: 0; font-size: 13px; }
+    dt { font-weight: 600; margin-top: 12px; color: #333; }
+    dd { margin: 2px 0 0; color: #555; font-family: ui-monospace, Menlo, Consolas, monospace; }
+    label { display: block; font-size: 13px; font-weight: 600; margin: 14px 0 4px; }
+    input, select {
+      width: 100%; box-sizing: border-box; padding: 9px 10px; font-size: 15px;
+      border: 1px solid #ccc; border-radius: 6px; background: #fff;
+    }
+    .row { display: flex; gap: 10px; margin-top: 18px; }
+    button {
+      flex: 1; padding: 10px; font-size: 14px; font-weight: 600;
+      border-radius: 6px; border: 1px solid #ccc; background: #f5f5f5; cursor: pointer;
+    }
+    button.primary { background: #E01E1D; border-color: #E01E1D; color: #fff; }
+    button.danger { background: #fff; border-color: #b3261e; color: #b3261e; }
+    button[disabled] { opacity: .55; cursor: default; }
+    hr { border: 0; border-top: 1px solid #eee; margin: 24px 0 0; }
+    #result { margin-top: 16px; font-size: 13px; line-height: 1.5; white-space: pre-wrap; }
+    .ok { color: #157a3c; }
+    .bad { color: #b3261e; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+
+  <h2 data-i18n="statusTitle">CloudCharge login</h2>
+  <p class="hint" data-i18n="statusHint"></p>
+
+  <dl>
+    <dt data-i18n="statusLabel">Status</dt>
+    <dd id="status">—</dd>
+    <dt data-i18n="userLabel">User ID</dt>
+    <dd id="user">—</dd>
+    <dt data-i18n="slotLabel">Signed in as app</dt>
+    <dd id="slot">—</dd>
+  </dl>
+
+  <div class="row">
+    <button id="test" data-i18n="test">Test connection</button>
+    <button id="logout" class="danger" data-i18n="logout">Log out</button>
+  </div>
+
+  <hr />
+
+  <h2 data-i18n="loginTitle">Log in again</h2>
+  <p class="hint" data-i18n="loginHint"></p>
+
+  <label data-i18n="phoneLabel">Mobile number</label>
+  <input type="tel" id="phone" placeholder="+47 900 00 000" autocomplete="tel" />
+
+  <label data-i18n="slotChoiceLabel">Occupy which app session</label>
+  <select id="slotChoice">
+    <option value="cloud_charge" data-i18n-option="slotCloud">CloudCharge app (recommended)</option>
+    <option value="defa_power" data-i18n-option="slotDefa">DEFA Power app</option>
+  </select>
+
+  <div class="row">
+    <button id="send" class="primary" data-i18n="sendCode">Send code</button>
+  </div>
+
+  <div id="codeStep" class="hidden">
+    <label data-i18n="codeLabel">Code from the SMS</label>
+    <input type="text" id="code" inputmode="numeric" maxlength="8" placeholder="000000" />
+    <div class="row">
+      <button id="login" class="primary" data-i18n="login">Log in</button>
+    </div>
+  </div>
+
+  <div id="result"></div>
+
+  <script type="text/javascript">
+    const STRINGS = {
+      en: {
+        statusTitle: 'CloudCharge login',
+        statusHint: 'This app talks to your DEFA charger through DEFA’s CloudCharge service. '
+                  + 'The login is shared by every charger you add. Only a masked form of the '
+                  + 'token is shown here.',
+        statusLabel: 'Status',
+        userLabel: 'User ID',
+        slotLabel: 'Signed in as app',
+        test: 'Test connection',
+        logout: 'Log out',
+        loginTitle: 'Log in again',
+        loginHint: 'CloudCharge allows one active session per app. If Homey and your phone '
+                 + 'use the same app slot, they keep signing each other out. Pick the app you '
+                 + 'do NOT use on your phone. The SMS always says DEFA Power — that is the only '
+                 + 'app CloudCharge actually delivers a code for — but the session you get is '
+                 + 'the one selected here. Your chargers come back on their own within a few '
+                 + 'minutes; no need to repair them.',
+        phoneLabel: 'Mobile number',
+        slotChoiceLabel: 'Occupy which app session',
+        slotCloud: 'CloudCharge app (recommended)',
+        slotDefa: 'DEFA Power app',
+        sendCode: 'Send code',
+        codeLabel: 'Code from the SMS',
+        login: 'Log in',
+        loggedIn: 'Logged in',
+        loggedOut: 'Not logged in',
+        testing: 'Contacting CloudCharge…',
+        sending: 'Sending code…',
+        sent: 'Code sent. Enter it below.',
+        loggingIn: 'Logging in…',
+        loggedInNow: 'Logged in. Your chargers will come back within a few minutes.',
+        loggingOut: 'Logging out…',
+        loggedOutDone: 'Logged out.',
+        notLoggedIn: 'Not logged in.',
+        foundOne: 'Connected. Found 1 charger: ',
+        foundMany: 'Connected. Found {n} chargers: ',
+        foundNone: 'Connected, but the account has no chargers.',
+        needPhone: 'Enter a mobile number.',
+        needCode: 'Enter the code from the SMS.',
+        failed: 'Failed: ',
+        errInvalidPhone: 'That does not look like a valid mobile number.',
+        errInvalidCode: 'That code was not accepted. Request a new one.',
+        errNoAttempt: 'No code is pending. Request a new one.',
+        errNoPhone: 'Request a code first.'
+      },
+      no: {
+        statusTitle: 'CloudCharge-innlogging',
+        statusHint: 'Appen snakker med DEFA-laderen gjennom DEFA sin CloudCharge-tjeneste. '
+                  + 'Innloggingen deles av alle ladere du legger til. Bare en maskert form '
+                  + 'av token-et vises her.',
+        statusLabel: 'Status',
+        userLabel: 'Bruker-ID',
+        slotLabel: 'Innlogget som app',
+        test: 'Test tilkobling',
+        logout: 'Logg ut',
+        loginTitle: 'Logg inn på nytt',
+        loginHint: 'CloudCharge tillater én aktiv sesjon per app. Bruker Homey og mobilen '
+                 + 'samme app-plass, logger de hverandre ut om og om igjen. Velg appen du '
+                 + 'IKKE bruker på mobilen. SMS-en sier alltid DEFA Power — det er den eneste '
+                 + 'appen CloudCharge faktisk leverer kode for — men sesjonen du får er den '
+                 + 'du velger her. Laderne kommer tilbake av seg selv i løpet av noen '
+                 + 'minutter; du trenger ikke reparere dem.',
+        phoneLabel: 'Mobilnummer',
+        slotChoiceLabel: 'Hvilken app-plass skal Homey okkupere',
+        slotCloud: 'CloudCharge-appen (anbefalt)',
+        slotDefa: 'DEFA Power-appen',
+        sendCode: 'Send kode',
+        codeLabel: 'Kode fra SMS-en',
+        login: 'Logg inn',
+        loggedIn: 'Innlogget',
+        loggedOut: 'Ikke innlogget',
+        testing: 'Kontakter CloudCharge…',
+        sending: 'Sender kode…',
+        sent: 'Kode sendt. Skriv den inn under.',
+        loggingIn: 'Logger inn…',
+        loggedInNow: 'Innlogget. Laderne kommer tilbake i løpet av noen minutter.',
+        loggingOut: 'Logger ut…',
+        loggedOutDone: 'Logget ut.',
+        notLoggedIn: 'Ikke innlogget.',
+        foundOne: 'Tilkoblet. Fant 1 lader: ',
+        foundMany: 'Tilkoblet. Fant {n} ladere: ',
+        foundNone: 'Tilkoblet, men kontoen har ingen ladere.',
+        needPhone: 'Skriv inn et mobilnummer.',
+        needCode: 'Skriv inn koden fra SMS-en.',
+        failed: 'Feilet: ',
+        errInvalidPhone: 'Dette ser ikke ut som et gyldig mobilnummer.',
+        errInvalidCode: 'Koden ble ikke godtatt. Be om en ny.',
+        errNoAttempt: 'Det ligger ingen kode og venter. Be om en ny.',
+        errNoPhone: 'Be om en kode først.'
+      }
+    };
+
+    const ERROR_KEYS = {
+      invalid_phone_number: 'errInvalidPhone',
+      invalid_code: 'errInvalidCode',
+      no_login_attempt: 'errNoAttempt',
+      no_phone: 'errNoPhone'
+    };
+
+    const SLOT_NAMES = { cloud_charge: 'CloudCharge', defa_power: 'DEFA Power', custom: '—' };
+
+    function onHomeyReady(Homey) {
+      const lang = (Homey.getLanguage && Homey.getLanguage() === 'no') ? 'no' : 'en';
+      const t = (key) => (STRINGS[lang] && STRINGS[lang][key]) || STRINGS.en[key] || key;
+
+      const $ = (id) => document.getElementById(id);
+      const result = $('result');
+
+      function say(text, className) {
+        result.textContent = text || '';
+        result.className = className || '';
+      }
+
+      function describe(response) {
+        const key = ERROR_KEYS[response && response.code];
+        if (key) return t(key);
+        return t('failed') + ((response && (response.message || response.code)) || '');
+      }
+
+      function applyStrings() {
+        for (const node of document.querySelectorAll('[data-i18n]')) {
+          node.textContent = t(node.getAttribute('data-i18n'));
+        }
+        for (const node of document.querySelectorAll('[data-i18n-option]')) {
+          node.textContent = t(node.getAttribute('data-i18n-option'));
+        }
+      }
+
+      function call(method, path, body) {
+        return new Promise((resolve, reject) => {
+          Homey.api(method, path, body || null, (error, data) =>
+            (error ? reject(error) : resolve(data)));
+        });
+      }
+
+      async function loadSession() {
+        try {
+          const session = await call('GET', '/session');
+          $('status').textContent = session.loggedIn ? t('loggedIn') : t('loggedOut');
+          $('user').textContent = session.userId || '—';
+          $('slot').textContent = SLOT_NAMES[session.slot] || session.slot || '—';
+        } catch (error) {
+          say(t('failed') + String((error && error.message) || error), 'bad');
+        }
+      }
+
+      async function test() {
+        $('test').disabled = true;
+        say(t('testing'));
+
+        try {
+          const response = await call('GET', '/test');
+
+          if (!response.ok) {
+            say(response.code === 'not_logged_in' ? t('notLoggedIn') : describe(response), 'bad');
+            return;
+          }
+
+          if (response.connectors === 0) say(t('foundNone'), 'ok');
+          else if (response.connectors === 1) say(t('foundOne') + response.names.join(', '), 'ok');
+          else say(t('foundMany').replace('{n}', response.connectors) + response.names.join(', '), 'ok');
+        } catch (error) {
+          say(t('failed') + String((error && error.message) || error), 'bad');
+        } finally {
+          $('test').disabled = false;
+        }
+      }
+
+      async function sendCode() {
+        const phone = $('phone').value.trim();
+        if (!phone) return say(t('needPhone'), 'bad');
+
+        $('send').disabled = true;
+        say(t('sending'));
+
+        try {
+          const response = await call('POST', '/login/sms', { phone });
+          if (!response.ok) return say(describe(response), 'bad');
+
+          $('codeStep').classList.remove('hidden');
+          say(t('sent'), 'ok');
+          $('code').focus();
+        } catch (error) {
+          say(t('failed') + String((error && error.message) || error), 'bad');
+        } finally {
+          $('send').disabled = false;
+        }
+      }
+
+      async function login() {
+        const code = $('code').value.trim();
+        if (!code) return say(t('needCode'), 'bad');
+
+        $('login').disabled = true;
+        say(t('loggingIn'));
+
+        try {
+          const response = await call('POST', '/login', {
+            code,
+            slot: $('slotChoice').value
+          });
+
+          if (!response.ok) return say(describe(response), 'bad');
+
+          $('codeStep').classList.add('hidden');
+          $('code').value = '';
+          await loadSession();
+          say(t('loggedInNow'), 'ok');
+        } catch (error) {
+          say(t('failed') + String((error && error.message) || error), 'bad');
+        } finally {
+          $('login').disabled = false;
+        }
+      }
+
+      async function logout() {
+        $('logout').disabled = true;
+        say(t('loggingOut'));
+
+        try {
+          await call('POST', '/logout');
+          await loadSession();
+          say(t('loggedOutDone'), 'ok');
+        } catch (error) {
+          say(t('failed') + String((error && error.message) || error), 'bad');
+        } finally {
+          $('logout').disabled = false;
+        }
+      }
+
+      $('test').addEventListener('click', test);
+      $('logout').addEventListener('click', logout);
+      $('send').addEventListener('click', sendCode);
+      $('login').addEventListener('click', login);
+
+      $('phone').addEventListener('keydown', (event) => { if (event.key === 'Enter') sendCode(); });
+      $('code').addEventListener('keydown', (event) => { if (event.key === 'Enter') login(); });
+
+      applyStrings();
+      loadSession();
+      Homey.ready();
+    }
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,751 @@
+{
+  "id": "com.thomastorp.defa-power",
+  "version": "0.3.1",
+  "compatibility": ">=12.4.5",
+  "sdk": 3,
+  "platforms": [
+    "local"
+  ],
+  "name": {
+    "en": "DEFA Power",
+    "no": "DEFA Power"
+  },
+  "description": {
+    "en": "Monitor and control a DEFA Power or eRange charger through the CloudCharge API.",
+    "no": "Overvåk og styr en DEFA Power- eller eRange-lader gjennom CloudCharge-API-et."
+  },
+  "category": [
+    "energy"
+  ],
+  "brandColor": "#E01E1D",
+  "permissions": [],
+  "api": {
+    "getSession": {
+      "method": "GET",
+      "path": "/session"
+    },
+    "testConnection": {
+      "method": "GET",
+      "path": "/test"
+    },
+    "sendCode": {
+      "method": "POST",
+      "path": "/login/sms"
+    },
+    "login": {
+      "method": "POST",
+      "path": "/login"
+    },
+    "logout": {
+      "method": "POST",
+      "path": "/logout"
+    }
+  },
+  "capabilities": {
+    "defa_status": {
+      "type": "enum",
+      "title": {
+        "en": "Charger status",
+        "no": "Laderstatus"
+      },
+      "getable": true,
+      "setable": false,
+      "uiComponent": "sensor",
+      "icon": "/assets/capability-icons/status.svg",
+      "values": [
+        { "id": "available", "title": { "en": "Available", "no": "Ledig" } },
+        { "id": "occupied", "title": { "en": "Occupied", "no": "Opptatt" } },
+        { "id": "preparing", "title": { "en": "Preparing", "no": "Forbereder" } },
+        { "id": "charging", "title": { "en": "Charging", "no": "Lader" } },
+        { "id": "suspended_ev", "title": { "en": "Paused by the car", "no": "Pauset av bilen" } },
+        { "id": "suspended_evse", "title": { "en": "Paused by the charger", "no": "Pauset av laderen" } },
+        { "id": "finishing", "title": { "en": "Finishing", "no": "Avslutter" } },
+        { "id": "faulted", "title": { "en": "Fault", "no": "Feil" } },
+        { "id": "unavailable", "title": { "en": "Unavailable", "no": "Utilgjengelig" } },
+        { "id": "reserved", "title": { "en": "Reserved", "no": "Reservert" } },
+        { "id": "restarting", "title": { "en": "Restarting", "no": "Starter på nytt" } },
+        { "id": "facility_finishing", "title": { "en": "Facility finishing", "no": "Anlegget avslutter" } },
+        { "id": "idle", "title": { "en": "Idle", "no": "Inaktiv" } },
+        { "id": "ev_connected", "title": { "en": "Car connected", "no": "Bil tilkoblet" } },
+        { "id": "unknown", "title": { "en": "Unknown", "no": "Ukjent" } }
+      ]
+    },
+    "defa_charging_state": {
+      "type": "enum",
+      "title": {
+        "en": "Charging state",
+        "no": "Ladetilstand"
+      },
+      "getable": true,
+      "setable": false,
+      "uiComponent": "sensor",
+      "icon": "/assets/capability-icons/charging.svg",
+      "values": [
+        { "id": "idle", "title": { "en": "Idle", "no": "Inaktiv" } },
+        { "id": "ev_connected", "title": { "en": "Car connected", "no": "Bil tilkoblet" } },
+        { "id": "charging", "title": { "en": "Charging", "no": "Lader" } },
+        { "id": "suspended_ev", "title": { "en": "Paused by the car", "no": "Pauset av bilen" } },
+        { "id": "suspended_evse", "title": { "en": "Paused by the charger", "no": "Pauset av laderen" } },
+        { "id": "unrecognized", "title": { "en": "Unrecognized", "no": "Ukjent tilstand" } }
+      ]
+    },
+    "defa_session_energy": {
+      "type": "number",
+      "title": {
+        "en": "This session",
+        "no": "Denne økten"
+      },
+      "getable": true,
+      "setable": false,
+      "insights": true,
+      "uiComponent": "sensor",
+      "icon": "/assets/capability-icons/session.svg",
+      "units": {
+        "en": "kWh",
+        "no": "kWh"
+      },
+      "min": 0,
+      "decimals": 2
+    },
+    "defa_error_code": {
+      "type": "string",
+      "title": {
+        "en": "Error code",
+        "no": "Feilkode"
+      },
+      "getable": true,
+      "setable": false,
+      "uiComponent": "sensor",
+      "icon": "/assets/capability-icons/error.svg"
+    },
+    "defa_last_update": {
+      "type": "string",
+      "title": {
+        "en": "Last update",
+        "no": "Siste oppdatering"
+      },
+      "getable": true,
+      "setable": false,
+      "uiComponent": "sensor",
+      "icon": "/assets/capability-icons/clock-check.svg"
+    },
+    "defa_eco_mode": {
+      "type": "boolean",
+      "title": {
+        "en": "Eco mode",
+        "no": "Eco-modus"
+      },
+      "getable": true,
+      "setable": true,
+      "uiComponent": "toggle",
+      "icon": "/assets/capability-icons/eco.svg"
+    },
+    "defa_button_override": {
+      "type": "boolean",
+      "title": {
+        "en": "Charge now",
+        "no": "Lad nå"
+      },
+      "getable": false,
+      "setable": true,
+      "uiComponent": "button",
+      "icon": "/assets/capability-icons/override.svg"
+    },
+    "defa_button_reset": {
+      "type": "boolean",
+      "title": {
+        "en": "Restart charger",
+        "no": "Restart laderen"
+      },
+      "getable": false,
+      "setable": true,
+      "uiComponent": "button",
+      "icon": "/assets/capability-icons/restart.svg"
+    },
+    "defa_button_refresh": {
+      "type": "boolean",
+      "title": {
+        "en": "Refresh now",
+        "no": "Oppdater nå"
+      },
+      "getable": false,
+      "setable": true,
+      "uiComponent": "button",
+      "icon": "/assets/capability-icons/refresh.svg"
+    },
+    "defa_charge_current": {
+      "type": "number",
+      "title": {
+        "en": "Charging current",
+        "no": "Ladestrøm"
+      },
+      "getable": true,
+      "setable": true,
+      "insights": true,
+      "chartType": "stepLine",
+      "uiComponent": "slider",
+      "icon": "/assets/capability-icons/current.svg",
+      "units": {
+        "en": "A",
+        "no": "A"
+      },
+      "min": 7,
+      "max": 32,
+      "step": 1,
+      "decimals": 0
+    },
+    "defa_plug_and_charge": {
+      "type": "boolean",
+      "title": {
+        "en": "Plug & Charge",
+        "no": "Plug & Charge"
+      },
+      "getable": true,
+      "setable": true,
+      "insights": true,
+      "insightsTitleTrue": {
+        "en": "Plug & Charge enabled",
+        "no": "Plug & Charge slått på"
+      },
+      "insightsTitleFalse": {
+        "en": "Plug & Charge disabled",
+        "no": "Plug & Charge slått av"
+      },
+      "uiComponent": "toggle",
+      "icon": "/assets/capability-icons/plug.svg"
+    },
+    "defa_charge_offline": {
+      "type": "boolean",
+      "title": {
+        "en": "Charge offline",
+        "no": "Lad offline"
+      },
+      "getable": true,
+      "setable": true,
+      "uiComponent": "toggle",
+      "icon": "/assets/capability-icons/offline.svg"
+    }
+  },
+  "images": {
+    "small": "/assets/images/small.png",
+    "large": "/assets/images/large.png",
+    "xlarge": "/assets/images/xlarge.png"
+  },
+  "author": {
+    "name": "Thomas Torp"
+  },
+  "flow": {
+    "triggers": [
+      {
+        "id": "defa_charging_started",
+        "title": {
+          "en": "Charging starts",
+          "no": "Ladingen starter"
+        },
+        "highlight": true,
+        "args": [
+          { "name": "device", "type": "device", "filter": "driver_id=charger" }
+        ]
+      },
+      {
+        "id": "defa_charging_stopped",
+        "title": {
+          "en": "Charging stops",
+          "no": "Ladingen stopper"
+        },
+        "highlight": true,
+        "args": [
+          { "name": "device", "type": "device", "filter": "driver_id=charger" }
+        ],
+        "tokens": [
+          {
+            "name": "session_energy",
+            "type": "number",
+            "title": { "en": "Session energy", "no": "Energi denne økten" },
+            "example": 12.4
+          }
+        ]
+      },
+      {
+        "id": "defa_car_connected",
+        "title": {
+          "en": "A car is plugged in",
+          "no": "En bil kobles til"
+        },
+        "args": [
+          { "name": "device", "type": "device", "filter": "driver_id=charger" }
+        ]
+      },
+      {
+        "id": "defa_car_disconnected",
+        "title": {
+          "en": "The car is unplugged",
+          "no": "Bilen kobles fra"
+        },
+        "args": [
+          { "name": "device", "type": "device", "filter": "driver_id=charger" }
+        ]
+      },
+      {
+        "id": "defa_status_changed",
+        "title": {
+          "en": "The charger status changes",
+          "no": "Laderstatusen endres"
+        },
+        "args": [
+          { "name": "device", "type": "device", "filter": "driver_id=charger" }
+        ],
+        "tokens": [
+          {
+            "name": "status",
+            "type": "string",
+            "title": { "en": "Status", "no": "Status" },
+            "example": "charging"
+          }
+        ]
+      },
+      {
+        "id": "defa_error_occurred",
+        "title": {
+          "en": "The charger reports an error",
+          "no": "Laderen melder en feil"
+        },
+        "args": [
+          { "name": "device", "type": "device", "filter": "driver_id=charger" }
+        ],
+        "tokens": [
+          {
+            "name": "error_code",
+            "type": "string",
+            "title": { "en": "Error code", "no": "Feilkode" },
+            "example": "GroundFailure"
+          }
+        ]
+      },
+      {
+        "id": "defa_error_cleared",
+        "title": {
+          "en": "The error is cleared",
+          "no": "Feilen er borte"
+        },
+        "args": [
+          { "name": "device", "type": "device", "filter": "driver_id=charger" }
+        ]
+      }
+    ],
+    "conditions": [
+      {
+        "id": "defa_condition_charging",
+        "title": {
+          "en": "The charger !{{is|isn't}} charging",
+          "no": "Laderen !{{lader|lader ikke}}"
+        },
+        "args": [
+          { "name": "device", "type": "device", "filter": "driver_id=charger" }
+        ]
+      },
+      {
+        "id": "defa_condition_car_connected",
+        "title": {
+          "en": "A car !{{is|isn't}} plugged in",
+          "no": "En bil !{{er|er ikke}} tilkoblet"
+        },
+        "args": [
+          { "name": "device", "type": "device", "filter": "driver_id=charger" }
+        ]
+      },
+      {
+        "id": "defa_condition_eco_mode",
+        "title": {
+          "en": "Eco mode !{{is|isn't}} active",
+          "no": "Eco-modus !{{er|er ikke}} aktiv"
+        },
+        "args": [
+          { "name": "device", "type": "device", "filter": "driver_id=charger" }
+        ]
+      },
+      {
+        "id": "defa_condition_plug_and_charge",
+        "title": {
+          "en": "Plug & Charge !{{is|isn't}} enabled",
+          "no": "Plug & Charge !{{er|er ikke}} slått på"
+        },
+        "args": [
+          { "name": "device", "type": "device", "filter": "driver_id=charger" }
+        ]
+      },
+      {
+        "id": "defa_condition_charge_offline",
+        "title": {
+          "en": "Offline charging !{{is|isn't}} enabled",
+          "no": "Offline-lading !{{er|er ikke}} slått på"
+        },
+        "args": [
+          { "name": "device", "type": "device", "filter": "driver_id=charger" }
+        ]
+      },
+      {
+        "id": "defa_condition_error",
+        "title": {
+          "en": "The charger !{{has|hasn't}} an error",
+          "no": "Laderen !{{har|har ikke}} en feil"
+        },
+        "args": [
+          { "name": "device", "type": "device", "filter": "driver_id=charger" }
+        ]
+      }
+    ],
+    "actions": [
+      {
+        "id": "defa_action_start",
+        "title": {
+          "en": "Start charging",
+          "no": "Start lading"
+        },
+        "highlight": true,
+        "args": [
+          { "name": "device", "type": "device", "filter": "driver_id=charger" }
+        ]
+      },
+      {
+        "id": "defa_action_stop",
+        "title": {
+          "en": "Stop charging",
+          "no": "Stopp lading"
+        },
+        "highlight": true,
+        "args": [
+          { "name": "device", "type": "device", "filter": "driver_id=charger" }
+        ]
+      },
+      {
+        "id": "defa_action_set_eco_mode",
+        "title": {
+          "en": "Turn eco mode on or off",
+          "no": "Slå eco-modus på eller av"
+        },
+        "titleFormatted": {
+          "en": "Turn eco mode [[mode]]",
+          "no": "Slå eco-modus [[mode]]"
+        },
+        "args": [
+          { "name": "device", "type": "device", "filter": "driver_id=charger" },
+          {
+            "name": "mode",
+            "type": "dropdown",
+            "values": [
+              { "id": "on", "label": { "en": "on", "no": "på" } },
+              { "id": "off", "label": { "en": "off", "no": "av" } }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "defa_action_override_schedule",
+        "title": {
+          "en": "Charge now, ignoring smart charging",
+          "no": "Lad nå, overstyr smartlading"
+        },
+        "args": [
+          { "name": "device", "type": "device", "filter": "driver_id=charger" }
+        ]
+      },
+      {
+        "id": "defa_action_reset",
+        "title": {
+          "en": "Restart the charger",
+          "no": "Restart laderen"
+        },
+        "titleFormatted": {
+          "en": "Restart the charger ([[type]])",
+          "no": "Restart laderen ([[type]])"
+        },
+        "args": [
+          { "name": "device", "type": "device", "filter": "driver_id=charger" },
+          {
+            "name": "type",
+            "type": "dropdown",
+            "values": [
+              { "id": "soft", "label": { "en": "soft", "no": "mykt" } },
+              { "id": "hard", "label": { "en": "hard", "no": "hardt" } }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "defa_action_refresh",
+        "title": {
+          "en": "Refresh the charger data",
+          "no": "Oppdater laderdata"
+        },
+        "args": [
+          { "name": "device", "type": "device", "filter": "driver_id=charger" }
+        ]
+      },
+      {
+        "id": "defa_action_set_current",
+        "title": {
+          "en": "Set the charging current",
+          "no": "Sett ladestrømmen"
+        },
+        "titleFormatted": {
+          "en": "Set the charging current to [[amps]] A",
+          "no": "Sett ladestrømmen til [[amps]] A"
+        },
+        "args": [
+          { "name": "device", "type": "device", "filter": "driver_id=charger" },
+          {
+            "name": "amps",
+            "type": "number",
+            "min": 7,
+            "max": 32,
+            "step": 1,
+            "placeholder": { "en": "Amps", "no": "Ampere" }
+          }
+        ]
+      },
+      {
+        "id": "defa_action_set_plug_and_charge",
+        "title": {
+          "en": "Turn Plug & Charge on or off",
+          "no": "Slå Plug & Charge på eller av"
+        },
+        "titleFormatted": {
+          "en": "Turn Plug & Charge [[mode]]",
+          "no": "Slå Plug & Charge [[mode]]"
+        },
+        "hint": {
+          "en": "With Plug & Charge on, charging is free and starts without any authorisation — anyone who plugs in charges on your electricity.",
+          "no": "Med Plug & Charge på er lading gratis og starter uten autorisasjon — hvem som helst som plugger seg inn, lader på strømmen din."
+        },
+        "args": [
+          { "name": "device", "type": "device", "filter": "driver_id=charger" },
+          {
+            "name": "mode",
+            "type": "dropdown",
+            "values": [
+              { "id": "on", "label": { "en": "on", "no": "på" } },
+              { "id": "off", "label": { "en": "off", "no": "av" } }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "defa_action_set_charge_offline",
+        "title": {
+          "en": "Turn offline charging on or off",
+          "no": "Slå offline-lading på eller av"
+        },
+        "titleFormatted": {
+          "en": "Turn offline charging [[mode]]",
+          "no": "Slå offline-lading [[mode]]"
+        },
+        "hint": {
+          "en": "Enables Plug & Charge automatically if the charger loses its internet connection.",
+          "no": "Slår på Plug & Charge automatisk hvis laderen mister internettforbindelsen."
+        },
+        "args": [
+          { "name": "device", "type": "device", "filter": "driver_id=charger" },
+          {
+            "name": "mode",
+            "type": "dropdown",
+            "values": [
+              { "id": "on", "label": { "en": "on", "no": "på" } },
+              { "id": "off", "label": { "en": "off", "no": "av" } }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "drivers": [
+    {
+      "id": "charger",
+      "name": {
+        "en": "DEFA Power charger",
+        "no": "DEFA Power-lader"
+      },
+      "class": "evcharger",
+      "energy": {
+        "evCharger": true,
+        "meterPowerImportedCapability": "meter_power"
+      },
+      "capabilities": [
+        "evcharger_charging",
+        "evcharger_charging_state",
+        "measure_power",
+        "meter_power",
+        "defa_session_energy",
+        "defa_status",
+        "defa_charging_state",
+        "defa_eco_mode",
+        "defa_button_override",
+        "defa_button_refresh",
+        "defa_button_reset",
+        "defa_error_code",
+        "defa_last_update"
+      ],
+      "capabilitiesOptions": {
+        "evcharger_charging": {
+          "title": {
+            "en": "Charging",
+            "no": "Lading"
+          }
+        },
+        "meter_power": {
+          "title": {
+            "en": "Total energy",
+            "no": "Total energi"
+          }
+        },
+        "defa_session_energy": {
+          "title": {
+            "en": "This session",
+            "no": "Denne økten"
+          }
+        },
+        "defa_button_reset": {
+          "maintenanceAction": true
+        },
+        "defa_button_refresh": {
+          "maintenanceAction": true
+        }
+      },
+      "settings": [
+        {
+          "id": "poll_interval_idle",
+          "type": "number",
+          "label": {
+            "en": "Refresh interval when idle",
+            "no": "Oppdateringsintervall når laderen er ledig"
+          },
+          "hint": {
+            "en": "CloudCharge rate limits per token, so keep this comfortably above a few seconds.",
+            "no": "CloudCharge rate-limiter per token, så hold denne godt over noen få sekunder."
+          },
+          "value": 60,
+          "min": 30,
+          "max": 900,
+          "step": 10,
+          "units": {
+            "en": "seconds",
+            "no": "sekunder"
+          }
+        },
+        {
+          "id": "poll_interval_charging",
+          "type": "number",
+          "label": {
+            "en": "Refresh interval while charging",
+            "no": "Oppdateringsintervall under lading"
+          },
+          "hint": {
+            "en": "Used only while a session is running, so power readings stay current.",
+            "no": "Brukes bare mens en ladeøkt pågår, slik at effekten holdes oppdatert."
+          },
+          "value": 10,
+          "min": 5,
+          "max": 300,
+          "step": 5,
+          "units": {
+            "en": "seconds",
+            "no": "sekunder"
+          }
+        },
+        {
+          "id": "clu_enabled",
+          "type": "checkbox",
+          "label": {
+            "en": "Control the charging current locally",
+            "no": "Styr ladestrømmen lokalt"
+          },
+          "hint": {
+            "en": "CloudCharge cannot set a current limit on this charger, but the charger's own configurator can. This writes to the commissioning settings on the charger itself, so use it for a few changes a day — not for continuous load balancing. Only the current is changed; every other installation parameter is read and written back unchanged.",
+            "no": "CloudCharge kan ikke sette strømgrense på denne laderen, men laderens egen konfigurator kan. Dette skriver til idriftsettelsesinnstillingene på selve laderen, så bruk det til noen få endringer om dagen — ikke til kontinuerlig lastbalansering. Kun strømmen endres; alle andre installasjonsparametere leses og skrives tilbake uendret."
+          },
+          "value": false
+        },
+        {
+          "id": "clu_host",
+          "type": "text",
+          "label": {
+            "en": "Charger IP address",
+            "no": "Laderens IP-adresse"
+          },
+          "hint": {
+            "en": "The address of the charger's own web interface on your network. Give it a fixed IP or a DHCP reservation so it does not move.",
+            "no": "Adressen til laderens eget webgrensesnitt på nettverket ditt. Gi den fast IP eller en DHCP-reservasjon så den ikke flytter seg."
+          },
+          "value": ""
+        },
+        {
+          "id": "clu_pin",
+          "type": "password",
+          "label": {
+            "en": "Configurator PIN",
+            "no": "PIN for konfiguratoren"
+          },
+          "hint": {
+            "en": "The PIN you use to open the CLU configurator on the charger.",
+            "no": "PIN-koden du bruker for å åpne CLU-konfiguratoren på laderen."
+          },
+          "value": ""
+        },
+        {
+          "id": "info_connector_id",
+          "type": "label",
+          "label": {
+            "en": "Connector ID",
+            "no": "Connector-ID"
+          },
+          "hint": {
+            "en": "Used for status, eco mode and restart calls.",
+            "no": "Brukes til status-, eco-modus- og restart-kall."
+          },
+          "value": ""
+        },
+        {
+          "id": "info_alias",
+          "type": "label",
+          "label": {
+            "en": "Alias",
+            "no": "Alias"
+          },
+          "hint": {
+            "en": "Used for start and stop. This is a different identifier from the connector ID.",
+            "no": "Brukes til start og stopp. Dette er en annen identifikator enn connector-ID-en."
+          },
+          "value": ""
+        },
+        {
+          "id": "info_serial",
+          "type": "label",
+          "label": {
+            "en": "Serial number",
+            "no": "Serienummer"
+          },
+          "value": ""
+        },
+        {
+          "id": "info_firmware",
+          "type": "label",
+          "label": {
+            "en": "Firmware",
+            "no": "Fastvare"
+          },
+          "value": ""
+        }
+      ],
+      "pair": [
+        {
+          "id": "login"
+        }
+      ],
+      "images": {
+        "small": "/drivers/charger/assets/images/small.png",
+        "large": "/drivers/charger/assets/images/large.png",
+        "xlarge": "/drivers/charger/assets/images/xlarge.png"
+      }
+    }
+  ]
+}

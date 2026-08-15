@@ -1,0 +1,20 @@
+{
+  "errors": {
+    "session_expired": "Innloggingen mot CloudCharge er ikke gyldig lenger. Logg inn på nytt under appinnstillingene, så kommer laderen tilbake av seg selv.",
+    "unreachable": "Får ikke kontakt med CloudCharge.",
+    "missing_alias": "Enheten mangler lagret alias, så lading kan verken startes eller stoppes. Fjern den og legg den til på nytt.",
+    "local_disabled": "Lokal strømstyring er ikke satt opp. Slå den på i enhetsinnstillingene og fyll inn laderens IP-adresse og PIN.",
+    "stop_forbidden": "CloudCharge nekter å stoppe. Vanligvis betyr det at det ikke pågår noen ladeøkt — sjekk om laderen står som ledig. Er bilen tilkoblet og lader, kan årsaken være at økten ble startet uten autorisasjon fordi Plug & Charge er på, og da regnes den ikke som din.",
+    "start_forbidden": "CloudCharge avviste å starte lading. Sjekk at laderen er delt med kontoen din og at bilen står tilkoblet."
+  },
+  "pair": {
+    "errors": {
+      "invalid_phone": "Skriv inn et gyldig mobilnummer, med landkode.",
+      "invalid_code": "Koden ble ikke godtatt. Sjekk sifrene, eller be om en ny kode.",
+      "no_login_attempt": "Det ligger ingen kode og venter for dette nummeret. Be om en ny.",
+      "invalid_dev_token": "CloudCharge avviste app-identiteten.",
+      "unauthorized": "CloudCharge avviste innloggingen.",
+      "no_phone": "Start på nytt og skriv inn mobilnummeret først."
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "errors": {
+    "session_expired": "The CloudCharge login is no longer valid. Log in again under the app settings and the charger comes back on its own.",
+    "unreachable": "Cannot reach CloudCharge.",
+    "missing_alias": "This device has no alias stored, so charging cannot be started or stopped. Remove it and add it again.",
+    "local_disabled": "Local current control is not set up. Enable it in the device settings and fill in the charger's IP address and PIN.",
+    "stop_forbidden": "CloudCharge refuses to stop. Usually this means no charging session is running — check whether the charger reads as available. If a car is plugged in and charging, the session may have started without authorisation because Plug & Charge is on, in which case it is not counted as yours.",
+    "start_forbidden": "CloudCharge refused to start charging. Check that the charger is shared with your account and that the car is plugged in."
+  },
+  "pair": {
+    "errors": {
+      "invalid_phone": "Enter a valid mobile number, including the country code.",
+      "invalid_code": "That code was not accepted. Check the digits, or request a new code.",
+      "no_login_attempt": "No code is pending for this number. Request a new one.",
+      "invalid_dev_token": "CloudCharge rejected the app identity.",
+      "unauthorized": "CloudCharge rejected the login.",
+      "no_phone": "Start over and enter your mobile number first."
+    }
+  }
+}

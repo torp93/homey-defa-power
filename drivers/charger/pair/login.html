@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: -apple-system, system-ui, sans-serif; margin: 0; padding: 20px; }
+    h2 { margin: 0 0 6px; font-size: 17px; }
+    p.hint { margin: 0 0 18px; color: #666; font-size: 13px; line-height: 1.45; }
+    label { display: block; font-size: 13px; font-weight: 600; margin: 14px 0 4px; }
+    input {
+      width: 100%; box-sizing: border-box; padding: 10px; font-size: 17px;
+      border: 1px solid #ccc; border-radius: 6px; letter-spacing: .04em;
+    }
+    button {
+      width: 100%; margin-top: 18px; padding: 11px; font-size: 15px; font-weight: 600;
+      border-radius: 6px; border: 1px solid #E01E1D; background: #E01E1D; color: #fff;
+      cursor: pointer;
+    }
+    button.secondary { background: #f5f5f5; border-color: #ccc; color: #333; margin-top: 10px; }
+    button[disabled] { opacity: .55; cursor: default; }
+    .device {
+      margin-top: 10px; text-align: left; background: #fff; color: #222;
+      border: 1px solid #ddd; border-radius: 8px; padding: 13px 14px; font-weight: 600;
+    }
+    .device small { display: block; margin-top: 3px; font-weight: 400; color: #777; font-size: 12px; }
+    #message { margin-top: 16px; font-size: 13px; line-height: 1.5; white-space: pre-wrap; }
+    .bad { color: #b3261e; }
+    .ok { color: #157a3c; }
+    .step { display: none; }
+    .step.active { display: block; }
+  </style>
+</head>
+<body>
+
+  <!-- Ingen manuell <script src="/homey.js"> her. Homey injiserer sin egen i
+       pairing-visninger, og en ekstra kopi overskriver den globale Homey med
+       en variant som mangler emit(). -->
+
+  <div id="step-phone" class="step active">
+    <h2 id="phoneTitle">Logg inn på CloudCharge</h2>
+    <p class="hint" id="phoneHint"></p>
+    <label id="phoneLabel">Mobilnummer</label>
+    <input type="tel" id="phone" placeholder="+47 900 00 000" autocomplete="tel" />
+    <button id="send">Send kode</button>
+  </div>
+
+  <div id="step-code" class="step">
+    <h2 id="codeTitle">Skriv inn koden</h2>
+    <p class="hint" id="codeHint"></p>
+    <label id="codeLabel">Kode fra SMS-en</label>
+    <input type="text" id="code" inputmode="numeric" maxlength="8" placeholder="000000" />
+    <button id="verify">Logg inn</button>
+    <button id="back" class="secondary">Bruk et annet nummer</button>
+  </div>
+
+  <div id="step-devices" class="step">
+    <h2 id="devicesTitle">Velg lader</h2>
+    <p class="hint" id="devicesHint"></p>
+    <div id="devices"></div>
+    <button id="reload" class="secondary">Hent listen på nytt</button>
+  </div>
+
+  <div id="message"></div>
+
+  <script type="application/javascript">
+    var STRINGS = {
+      en: {
+        phoneTitle: 'Log in to CloudCharge',
+        phoneHint: 'Your charger is reached through DEFA’s CloudCharge service. '
+                 + 'Enter the mobile number your DEFA Power account uses and you will '
+                 + 'get a code by SMS. Logging in here signs you out of the DEFA Power '
+                 + 'app on your phone — just log back in there afterwards.',
+        phoneLabel: 'Mobile number',
+        send: 'Send code',
+        codeTitle: 'Enter the code',
+        codeHint: 'The SMS says it is for DEFA Power. That is expected — this app '
+                + 'identifies itself as that app, because it is the only one CloudCharge '
+                + 'actually delivers the code for.',
+        codeLabel: 'Code from the SMS',
+        verify: 'Log in',
+        back: 'Use another number',
+        devicesTitle: 'Choose a charger',
+        devicesHint: 'Tap a charger to add it to Homey.',
+        reload: 'Reload the list',
+        sending: 'Sending code…',
+        sent: 'Code sent. It usually arrives within a few seconds.',
+        verifying: 'Logging in…',
+        loading: 'Looking for chargers…',
+        adding: 'Adding…',
+        added: 'Added.',
+        none: 'The account has no chargers.',
+        repaired: 'Logged in again. You can close this.',
+        needPhone: 'Enter a mobile number.',
+        needCode: 'Enter the code from the SMS.',
+        noBridge: 'Cannot reach the app from this view.'
+      },
+      no: {
+        phoneTitle: 'Logg inn på CloudCharge',
+        phoneHint: 'Laderen nås gjennom DEFA sin CloudCharge-tjeneste. Skriv inn '
+                 + 'mobilnummeret DEFA Power-kontoen din bruker, så får du en '
+                 + 'kode på SMS. Innlogging her logger deg ut av DEFA Power-appen '
+                 + 'på mobilen — bare logg inn der igjen etterpå.',
+        phoneLabel: 'Mobilnummer',
+        send: 'Send kode',
+        codeTitle: 'Skriv inn koden',
+        codeHint: 'SMS-en sier at den gjelder DEFA Power. Det er som forventet — '
+                + 'appen utgir seg for å være den, fordi det er den eneste '
+                + 'CloudCharge faktisk leverer koden for.',
+        codeLabel: 'Kode fra SMS-en',
+        verify: 'Logg inn',
+        back: 'Bruk et annet nummer',
+        devicesTitle: 'Velg lader',
+        devicesHint: 'Trykk på en lader for å legge den til i Homey.',
+        reload: 'Hent listen på nytt',
+        sending: 'Sender kode…',
+        sent: 'Kode sendt. Den kommer vanligvis innen noen sekunder.',
+        verifying: 'Logger inn…',
+        loading: 'Ser etter ladere…',
+        adding: 'Legger til…',
+        added: 'Lagt til.',
+        none: 'Kontoen har ingen ladere.',
+        repaired: 'Innlogget på nytt. Du kan lukke dette.',
+        needPhone: 'Skriv inn et mobilnummer.',
+        needCode: 'Skriv inn koden fra SMS-en.',
+        noBridge: 'Får ikke kontakt med appen fra denne visningen.'
+      }
+    };
+
+    var $ = function (id) { return document.getElementById(id); };
+    var api = null;
+    var onReadyFired = false;
+    var mode = 'pair';
+
+    function onHomeyReady(instance) {
+      onReadyFired = true;
+      if (instance) api = instance;
+      try { if (api && api.ready) api.ready(); } catch (error) { /* ikke fatalt */ }
+      boot();
+    }
+
+    function resolveApi() {
+      if (api && typeof api.emit === 'function') return api;
+      if (typeof Homey !== 'undefined' && Homey) return Homey;
+      return api;
+    }
+
+    function describeBridge() {
+      var lines = [];
+      lines.push('onHomeyReady fired: ' + onReadyFired);
+      lines.push('typeof Homey: ' + (typeof Homey));
+
+      var target = resolveApi();
+      lines.push('resolved api: ' + (target ? 'yes' : 'no'));
+
+      if (target) {
+        lines.push('emit: ' + (typeof target.emit));
+        lines.push('createDevice: ' + (typeof target.createDevice));
+        lines.push('done: ' + (typeof target.done));
+        lines.push('showView: ' + (typeof target.showView));
+      }
+
+      return lines.join('\n');
+    }
+
+    var lang = 'en';
+    var t = function (key) {
+      return (STRINGS[lang] && STRINGS[lang][key]) || STRINGS.en[key] || key;
+    };
+
+    function say(text, className) {
+      $('message').textContent = text || '';
+      $('message').className = className || '';
+    }
+
+    function showStep(id) {
+      var steps = document.querySelectorAll('.step');
+      for (var i = 0; i < steps.length; i++) steps[i].classList.remove('active');
+      $(id).classList.add('active');
+    }
+
+    function applyStrings() {
+      var keys = ['phoneTitle', 'phoneHint', 'phoneLabel', 'codeTitle', 'codeHint',
+                  'codeLabel', 'devicesTitle', 'devicesHint'];
+      for (var i = 0; i < keys.length; i++) $(keys[i]).textContent = t(keys[i]);
+      $('send').textContent = t('send');
+      $('verify').textContent = t('verify');
+      $('back').textContent = t('back');
+      $('reload').textContent = t('reload');
+    }
+
+    // emit() og createDevice() svarer med promise i nyere SDK og med callback
+    // i eldre. Vi tar imot begge.
+    function bridge(name, arg, missingMessage) {
+      return new Promise(function (resolve, reject) {
+        var target = resolveApi();
+
+        if (!target || typeof target[name] !== 'function') {
+          reject(new Error(missingMessage + '\n\n' + describeBridge()));
+          return;
+        }
+
+        var fail = function (error) {
+          reject(error instanceof Error ? error : new Error(String(error)));
+        };
+        var result;
+
+        try {
+          result = target[name](arg, function (error, value) {
+            if (error) fail(error); else resolve(value);
+          });
+        } catch (error) {
+          fail(error);
+          return;
+        }
+
+        if (result && typeof result.then === 'function') result.then(resolve, fail);
+      });
+    }
+
+    // bridge() sender bare ett argument videre, så emit trenger sin egen vei
+    // fordi den tar både hendelsesnavn og data.
+    function emitEvent(event, data) {
+      return new Promise(function (resolve, reject) {
+        var target = resolveApi();
+
+        if (!target || typeof target.emit !== 'function') {
+          reject(new Error(t('noBridge') + '\n\n' + describeBridge()));
+          return;
+        }
+
+        var fail = function (error) {
+          reject(error instanceof Error ? error : new Error(String(error)));
+        };
+        var result;
+
+        try {
+          result = target.emit(event, data, function (error, value) {
+            if (error) fail(error); else resolve(value);
+          });
+        } catch (error) {
+          fail(error);
+          return;
+        }
+
+        if (result && typeof result.then === 'function') result.then(resolve, fail);
+      });
+    }
+
+    function finish() {
+      var target = resolveApi();
+      try {
+        if (target && typeof target.done === 'function') {
+          var result = target.done();
+          if (result && typeof result.catch === 'function') result.catch(function () {});
+        }
+      } catch (error) { /* visningen lukkes uansett av brukeren */ }
+    }
+
+    function sendCode() {
+      var phone = $('phone').value.trim();
+      if (!phone) { say(t('needPhone'), 'bad'); return; }
+
+      $('send').disabled = true;
+      say(t('sending'));
+
+      emitEvent('send_code', { phone: phone }).then(function () {
+        showStep('step-code');
+        say(t('sent'), 'ok');
+        $('code').focus();
+      }).catch(function (error) {
+        say(String((error && error.message) || error), 'bad');
+      }).then(function () {
+        $('send').disabled = false;
+      });
+    }
+
+    function verifyCode() {
+      var code = $('code').value.trim();
+      if (!code) { say(t('needCode'), 'bad'); return; }
+
+      $('verify').disabled = true;
+      say(t('verifying'));
+
+      emitEvent('verify_code', { code: code }).then(function () {
+        if (mode === 'repair') {
+          say(t('repaired'), 'ok');
+          finish();
+          return;
+        }
+        loadDevices();
+      }).catch(function (error) {
+        say(String((error && error.message) || error), 'bad');
+      }).then(function () {
+        $('verify').disabled = false;
+      });
+    }
+
+    function addDevice(device) {
+      say(t('adding'));
+
+      bridge('createDevice', device, t('noBridge')).then(function () {
+        say(t('added'), 'ok');
+        finish();
+      }).catch(function (error) {
+        say(String((error && error.message) || error), 'bad');
+      });
+    }
+
+    // Enhetslisten hentes hit i stedet for gjennom list_devices-malen, som
+    // aldri kaller handleren sin når man navigerer til den herfra.
+    function loadDevices() {
+      showStep('step-devices');
+      say(t('loading'));
+      $('devices').textContent = '';
+
+      emitEvent('list_connectors', {}).then(function (devices) {
+        var list = devices || [];
+        $('devices').textContent = '';
+
+        if (!list.length) {
+          say(t('none'), 'bad');
+          return;
+        }
+
+        say('');
+
+        list.forEach(function (device) {
+          var button = document.createElement('button');
+          button.className = 'device';
+          button.textContent = device.name;
+
+          var detail = document.createElement('small');
+          detail.textContent = (device.settings && device.settings.info_serial)
+            || (device.data && device.data.id) || '';
+          button.appendChild(detail);
+
+          button.addEventListener('click', function () { addDevice(device); });
+          $('devices').appendChild(button);
+        });
+      }).catch(function (error) {
+        say(String((error && error.message) || error), 'bad');
+      });
+    }
+
+    var booted = false;
+
+    function boot() {
+      if (booted) return;
+      booted = true;
+
+      var target = resolveApi();
+
+      try {
+        if (target && target.getLanguage && target.getLanguage() === 'no') lang = 'no';
+      } catch (error) { /* beholder engelsk */ }
+
+      applyStrings();
+      showStep('step-phone');
+
+      $('send').addEventListener('click', sendCode);
+      $('verify').addEventListener('click', verifyCode);
+      $('reload').addEventListener('click', loadDevices);
+      $('back').addEventListener('click', function () {
+        showStep('step-phone');
+        say('');
+      });
+
+      $('phone').addEventListener('keydown', function (event) {
+        if (event.key === 'Enter') sendCode();
+      });
+      $('code').addEventListener('keydown', function (event) {
+        if (event.key === 'Enter') verifyCode();
+      });
+
+      emitEvent('check_session', {}).then(function (result) {
+        if (result && result.mode) mode = result.mode;
+        if (!result || !result.ready) return;
+
+        if (mode === 'repair') {
+          say(t('repaired'), 'ok');
+          return;
+        }
+        loadDevices();
+      }).catch(function () { /* logger inn på vanlig måte */ });
+
+      try { if (target && target.ready && !onReadyFired) target.ready(); } catch (error) { /* ok */ }
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', boot);
+    } else {
+      boot();
+    }
+  </script>
+
+</body>
+</html>
