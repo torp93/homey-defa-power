@@ -1,6 +1,6 @@
 {
   "id": "com.thomastorp.defa-power",
-  "version": "0.3.2",
+  "version": "1.0.0",
   "compatibility": ">=12.4.5",
   "sdk": 3,
   "platforms": [

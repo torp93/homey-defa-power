@@ -1,7 +1,7 @@
 {
-  "0.3.2": {
-    "en": "Tidier device view: the two detailed status sensors are hidden from the tile (still available in Flows), and the last-update timestamp no longer gets cut off.",
-    "no": "Ryddigere enhetsvisning: de to detaljerte statussensorene er skjult fra flisen (fortsatt tilgjengelige i Flows), og tidsstempelet for siste oppdatering blir ikke lenger kuttet av."
+  "1.0.0": {
+    "en": "First stable release. Monitoring, start/stop, eco mode and charge now through CloudCharge, plus charging current, Plug & Charge and offline charging through the charger's own configurator on your local network. Tidier device view and a last-update timestamp that no longer gets cut off.",
+    "no": "Første stabile versjon. Overvåking, start/stopp, eco-modus og «lad nå» gjennom CloudCharge, pluss ladestrøm, Plug & Charge og offline-lading gjennom laderens egen konfigurator på det lokale nettverket. Ryddigere enhetsvisning og et tidsstempel som ikke lenger blir kuttet av."
   },
   "0.3.1": {
     "en": "New 'error cleared' trigger and 'has an error' condition. Restart/refresh moved to maintenance actions. Failed reads back off instead of retrying every poll, a logout that was already dead no longer reports failure, and assorted hardening.",
