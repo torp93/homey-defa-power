@@ -1,21 +1,21 @@
 # DEFA Power for Homey Pro
 
-Overvåk og styr en DEFA Power- eller eRange-lader fra Homey, gjennom DEFA sin
-CloudCharge-tjeneste.
+Monitor and control a DEFA Power or eRange charger from Homey, through DEFA's
+CloudCharge service.
 
-> **Uoffisielt prosjekt.** Dette er ikke laget av, tilknyttet eller støttet av
-> DEFA. «DEFA», «DEFA Power», «eRange» og «CloudCharge» er DEFAs varemerker og
-> brukes her kun for å beskrive hva appen snakker med. API-et er
-> reverse-engineert og udokumentert, og kan slutte å virke uten varsel hvis DEFA
-> endrer noe. Bruk på eget ansvar. Ingen garanti — se `LICENSE`.
+> **Unofficial project.** This is not made by, affiliated with, or endorsed by
+> DEFA. "DEFA", "DEFA Power", "eRange" and "CloudCharge" are trademarks of DEFA
+> and are used here only to describe what the app talks to. The API is
+> reverse-engineered and undocumented, and may stop working without notice if
+> DEFA changes something. Use at your own risk. No warranty — see `LICENSE`.
 
-## Hvorfor sky og ikke lokalt nett
+## Why cloud and not the local network
 
-Laderens lokale webgrensesnitt (CLU Commissioning tool, Flask på port 80) er et
-*idriftsettelsesverktøy*. Det eksponerer `/get-status`, `/get-homeCLU`,
-`/set-homeCLU`, `/set-wan` og PIN-håndtering — altså nettype, sikringsstørrelse
-og WiFi. Det finnes ingen effekt, energi, ladestatus eller start/stopp der.
-Derfor går all styring via CloudCharge:
+The charger's local web interface (the CLU Commissioning tool, Flask on port 80)
+is a *commissioning tool*. It exposes `/get-status`, `/get-homeCLU`,
+`/set-homeCLU`, `/set-wan` and PIN handling — that is, distribution-network
+type, fuse size and Wi-Fi. There is no power, energy, charging status or
+start/stop there. So all control goes through CloudCharge:
 
 ```
 https://prod.cloudcharge.se/services/user
@@ -23,119 +23,121 @@ x-authorization: <token>
 x-user: <user-id>
 ```
 
-## Hva appen kan
+## What the app can do
 
-| Kapabilitet | Kilde |
+| Capability | Source |
 | --- | --- |
-| `measure_power` | `powerConsumption` fra `/connector/{id}/operationaldata` (kW → W) |
+| `measure_power` | `powerConsumption` from `/connector/{id}/operationaldata` (kW → W) |
 | `meter_power` | `meterValue`, total kWh |
-| `defa_session_energy` | `transactionMeterValue`, kWh denne økten |
+| `defa_session_energy` | `transactionMeterValue`, kWh this session |
 | `evcharger_charging_state` | `ocpp.chargingState` + `ocpp.status` |
-| `defa_status`, `defa_charging_state` | samme, men med full detaljgrad |
-| Start / stopp | `POST /charging/start` og `/charging/stop` |
-| Eco-modus | `GET`/`PUT /connector/{id}/ecomode/configuration` |
-| Lad nå | `PUT /connector/{id}/schedule/override` |
+| `defa_status`, `defa_charging_state` | same, but at full detail |
+| Start / stop | `POST /charging/start` and `/charging/stop` |
+| Eco mode | `GET`/`PUT /connector/{id}/ecomode/configuration` |
+| Charge now | `PUT /connector/{id}/schedule/override` |
 | Restart | `POST /connector/{id}/reset?type=soft\|hard` |
 
-## Ladestrøm — lokalt, ikke gjennom skyen
+## Charging current — local, not through the cloud
 
-CloudCharge kan **ikke** sette strømgrense på denne laderen.
-`/connector/{id}/maxcurrent/alternatives` svarer `404 CAPABILITY_NOT_FOUND`, og
-laderen melder selv `capabilities.maxPower: false`. Det samme gjelder
-lastbalansering og manuelle ladeskjemaer — `/schedule/active-settings`
-rapporterer bare `capable: ["ECOMODE"]`.
+CloudCharge **cannot** set a current limit on this charger.
+`/connector/{id}/maxcurrent/alternatives` answers `404 CAPABILITY_NOT_FOUND`, and
+the charger itself reports `capabilities.maxPower: false`. The same holds for
+load balancing and manual charging schedules — `/schedule/active-settings`
+reports only `capable: ["ECOMODE"]`.
 
-Men laderens egen konfigurator kan. Slår du på **Styr ladestrømmen lokalt** i
-enhetsinnstillingene og fyller inn laderens IP-adresse og PIN, dukker
-kapabiliteten `defa_charge_current` opp, sammen med flow-kortet «Sett
-ladestrømmen til X A».
+But the charger's own configurator can. Turn on **Control the charging current
+locally** in the device settings and fill in the charger's IP address and PIN,
+and the `defa_charge_current` capability appears, along with the flow card "Set
+the charging current to X A".
 
-Grensene kommer fra konfiguratorens eget skjema:
+The limits come from the configurator's own schema:
 
-| Felt | Grenser |
+| Field | Limits |
 | --- | --- |
-| `maxTotalChargeCurrent` | heltall, min 7 A, `lessOrEqual` hovedsikringen |
-| `connectors[].maxCurrent` | heltall, 6–32 A |
+| `maxTotalChargeCurrent` | integer, min 7 A, `lessOrEqual` the main fuse |
+| `connectors[].maxCurrent` | integer, 6–32 A |
 
-Effektiv grense er den laveste av de to, og skyveknappen settes deretter ved
-oppstart. På et 63 A-anlegg med ett Gen2-ladepunkt blir det 7–32 A.
+The effective limit is the lower of the two, and the slider is ranged
+accordingly at startup. On a 63 A installation with one Gen2 charge point that
+comes out to 7–32 A.
 
-**Dette er et idriftsettelsesendepunkt, ikke en runtime-knapp.** `/set-homeCLU`
-tar hele konfigurasjonen — nettype, sikringsstørrelse, fasekobling — så
-appen leser alltid ferskt, endrer kun strømmen og skriver resten tilbake
-uendret. I tillegg:
+**This is a commissioning endpoint, not a runtime knob.** `/set-homeCLU` takes
+the whole configuration — network type, fuse size, phase wiring — so the app
+always reads fresh, changes only the current, and writes the rest back
+unchanged. In addition:
 
-- skriving hoppes over hvis verdien allerede er den samme
-- verdier utenfor skjemaets grenser avvises før noe nettverkskall skjer
-- en ufullstendig lest konfigurasjon avbryter skrivingen
-- installasjonsparameterne lagres ved første lesing, og en skriving avbrytes
-  hvis de har endret seg siden
+- the write is skipped if the value is already the same
+- values outside the schema's limits are rejected before any network call
+- an incompletely read configuration aborts the write
+- the installation parameters are stored on the first read, and a write aborts
+  if they have changed since
 
-Bruk det til noen få endringer om dagen — dag/natt, eller når varmepumpa
-drar mye — ikke til lastbalansering hvert minutt.
+Use it for a few changes a day — day/night, or when the heat pump draws a lot —
+not for load balancing every minute.
 
-## To identifikatorer som er lette å blande
+## Two identifiers that are easy to mix up
 
-Hvert ladepunkt har begge, og de er ikke like:
+Every charge point has both, and they are not the same:
 
-- **`alias`** — nøkkelen i `aliasMap`, f.eks. `00.00.00.0000`. Brukes av
-  `/charging/start` og `/charging/stop`.
-- **`connector.id`** — en UUID. Brukes av alt under `/connector/{id}/…`.
+- **`alias`** — the key in `aliasMap`, e.g. `00.00.00.0000`. Used by
+  `/charging/start` and `/charging/stop`.
+- **`connector.id`** — a UUID. Used by everything under `/connector/{id}/…`.
 
-Bytter man om, feiler begge kallene stille. `pickConnectors()` i
-[`lib/connector-state.js`](lib/connector-state.js) holder dem adskilt, og det er
-dekket av test.
+Swap them and both calls fail silently. `pickConnectors()` in
+[`lib/connector-state.js`](lib/connector-state.js) keeps them apart, and that is
+covered by tests.
 
-## Innlogging
+## Login
 
-Paringen ber om mobilnummer og sender en SMS-kode.
+Pairing asks for a mobile number and sends an SMS code.
 
-Appen utgir seg for å være **DEFA Power**-appen (`devToken`
-`XqP3sCFKdg4vrV8J`). Det er ikke et vilkårlig valg: med CloudCharge-appens token
-svarer `/prelogin` `200 OK` og oppretter en gyldig loginAttempt — `/login` med
-feil kode svarer da `Invalid login credentials.` i stedet for
-`No loginAttempts found` — men SMS-en blir aldri levert.
+The app identifies itself as the **DEFA Power** app (`devToken`
+`XqP3sCFKdg4vrV8J`). That is not an arbitrary choice: with the CloudCharge app's
+token, `/prelogin` answers `200 OK` and creates a valid login attempt — `/login`
+with a wrong code then answers `Invalid login credentials.` instead of
+`No loginAttempts found` — but the SMS is never delivered.
 
-CloudCharge tillater **én aktiv sesjon per app**, og det biter begge veier:
-bruker Homey samme `devToken` som mobilappen din, logger de hverandre ut
-kontinuerlig. Åpner du DEFA Power-appen, får Homey `401` på neste polling og
-laderen blir utilgjengelig.
+CloudCharge allows **one active session per app**, and it bites both ways: if
+Homey uses the same `devToken` as your phone, they keep signing each other out.
+Open the DEFA Power app and Homey gets `401` on the next poll and the charger
+goes unavailable.
 
-Derfor bør Homey okkupere plassen til den appen du *ikke* bruker. Under
-appinnstillingene kan du velge hvilken app-plass innloggingen skal ta.
-SMS-en bestilles alltid som DEFA Power — den eneste ruten som leverer kode —
-men koden løses inn mot den plassen du velger.
+So Homey should occupy the slot of the app you *don't* use. In the app settings
+you can pick which app slot the login takes. The SMS is always requested as DEFA
+Power — the only route that delivers a code — but the code is redeemed against
+the slot you choose.
 
-Innloggingen ligger i **appinnstillingene**, ikke i en reparasjon av enheten.
-Sesjonen er app-global og deles av alle ladere, og enhetene blir tilgjengelige
-igjen av seg selv ved første vellykkede polling etter en ny innlogging.
+The login lives in the **app settings**, not in a device repair. The session is
+app-global and shared by all chargers, and devices become available again on
+their own at the first successful poll after a new login.
 
-En sidebemerkning for framtidige Homey-apper: repair-visninger hentes fra
-`drivers/<id>/repair/`, ikke fra `pair/`. Peker `repair` i manifestet på en fil
-som ikke finnes der, får du `unknown_error_getting_file` og en blank skjerm.
+A side note for future Homey apps: repair views are read from
+`drivers/<id>/repair/`, not from `pair/`. If `repair` in the manifest points at
+a file that isn't there, you get `unknown_error_getting_file` and a blank
+screen.
 
-SMS-en ser slik ut, der de siste elleve tegnene er Android sin SMS
-Retriever-hash og ikke noe du skal taste inn:
+The SMS looks like this, where the last eleven characters are Android's SMS
+Retriever hash and not something you type in:
 
 ```
-123456 er bekreftelseskoden din for å logge på DEFA Power.
+123456 is your confirmation code for signing in to DEFA Power.
 
 AbCdEfGhIjK
 ```
 
 ## Rate limiting
 
-CloudCharge rate-limiter per token, og kall som kommer tettere enn omtrent ett
-sekund begynner å time ut. `CloudChargeClient` serialiserer derfor starten av
-hvert kall med minst 1000 ms mellomrom, uansett hvor mange enheter eller flows
-som spør samtidig.
+CloudCharge rate-limits per token, and calls closer together than about one
+second start to time out. `CloudChargeClient` therefore serializes the start of
+each call with at least 1000 ms between them, no matter how many devices or
+flows ask at once.
 
-Pollingen er adaptiv: hvert 60. sekund normalt, hvert 10. sekund mens en økt
-pågår. Begge er justerbare per enhet. Ved overgang til lading kalles
-`/startliveconsumption` — uten den står `powerConsumption` på 0 gjennom hele
-økten.
+Polling is adaptive: every 60 seconds normally, every 10 seconds while a session
+is running. Both are adjustable per device. On the transition to charging,
+`/startliveconsumption` is called — without it `powerConsumption` stays at 0 for
+the whole session.
 
-## Utvikling
+## Development
 
 ```bash
 node --test
@@ -149,20 +151,21 @@ homey app validate --level publish
 homey app run --remote
 ```
 
-`--remote` laster opp til Homey-en. Uten flagget bygger CLI v4 i en lokal
-Docker-container.
+`--remote` uploads to the Homey. Without the flag, CLI v4 builds into a local
+Docker container.
 
-Merk at `env.json` ikke leveres på Homey Pro 13.4.0 — `this.homey.env` kommer
-stille tomt. Sesjonen lagres derfor i appinnstillingene, med konstantene i
-[`lib/cloudcharge-config.js`](lib/cloudcharge-config.js) som fallback.
+Note that `env.json` is not delivered on Homey Pro 13.4.0 — `this.homey.env`
+arrives silently empty. The session is therefore stored in the app settings,
+with the constants in [`lib/cloudcharge-config.js`](lib/cloudcharge-config.js) as
+a fallback.
 
-## Takk
+## Credits
 
-API-kartleggingen bygger på [Bebbssos/ha-defa-power](https://github.com/Bebbssos/ha-defa-power),
-integrasjonen for Home Assistant. CloudCharge-API-et er uoffisielt og kan endres
-uten varsel.
+The API mapping builds on [Bebbssos/ha-defa-power](https://github.com/Bebbssos/ha-defa-power),
+the Home Assistant integration. The CloudCharge API is unofficial and may change
+without notice.
 
-## Lisens
+## License
 
-MIT — se [`LICENSE`](LICENSE). Varemerker og tredjepartsreferanser er listet i
-[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+MIT — see [`LICENSE`](LICENSE). Trademarks and third-party references are listed
+in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
