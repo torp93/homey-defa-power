@@ -1,4 +1,8 @@
 {
+  "1.0.1": {
+    "en": "New app and device images showing the actual charger.",
+    "no": "Nye app- og enhetsbilder som viser selve laderen."
+  },
   "1.0.0": {
     "en": "First stable release. Monitoring, start/stop, eco mode and charge now through CloudCharge, plus charging current, Plug & Charge and offline charging through the charger's own configurator on your local network. Tidier device view and a last-update timestamp that no longer gets cut off.",
     "no": "Første stabile versjon. Overvåking, start/stopp, eco-modus og «lad nå» gjennom CloudCharge, pluss ladestrøm, Plug & Charge og offline-lading gjennom laderens egen konfigurator på det lokale nettverket. Ryddigere enhetsvisning og et tidsstempel som ikke lenger blir kuttet av."
