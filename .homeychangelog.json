@@ -1,4 +1,8 @@
 {
+  "1.1.1": {
+    "en": "The app icon is now the DEFA logo, and the brand colour matches it.",
+    "no": "Appikonet er nå DEFA-logoen, og merkefargen er justert til å matche den."
+  },
   "1.1.0": {
     "en": "Homey's own EV charger cards are now the primary way to start and stop charging; the old duplicates still work in existing Flows. New triggers for eco mode, Plug & Charge and offline charging, including changes made outside Homey. A paused session now shows as paused. Clearer wording, Norwegian error messages, and a new app image.",
     "no": "Homeys egne elbillader-kort er nå hovedveien for å starte og stoppe lading; de gamle duplikatene virker fortsatt i eksisterende Flows. Nye triggere for eco-modus, Plug & Charge og offline-lading, også når de endres utenfor Homey. En pauset ladeøkt vises nå som pauset. Tydeligere tekster, norske feilmeldinger og nytt appbilde."

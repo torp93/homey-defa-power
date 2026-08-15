@@ -1,6 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 960" width="960" height="960">
-  <!-- Appikonet rendres av Homey som en ensfarget maske fylt med brandColor,
-       så det er formen alene som teller. Ren fylt bane, ingen strek, ingen
-       bakgrunn — og et lyn er lesbart helt ned i listestørrelse. -->
-  <path fill="#000000" d="M600 29 L168 528 L444 528 L348 931 L804 413 L528 413 Z"/>
+  <!-- DEFAs offisielle logo, hentet fra defa.com (defa-logo.svg). Homey
+       rendrer appikonet som en ensfarget maske fylt med brandColor, så det er
+       formen som teller: rammen har et hull der bokstavene står, og logoen
+       leses derfor riktig også som maske. Skalert og sentrert på 960x960 med
+       transparent bakgrunn. -->
+  <g transform="translate(48 267) scale(16.39)">
+    <path fill="#E11F1D" d="M3.968,0,0,25.98H52.721L48.753,0ZM3.261,23.371,6.25,2.718H46.362l3.207,20.653ZM12.338,4.783H8.37L5.979,21.306H9.892c5.544,0,6.9-3.424,7.772-9.294S15.218,4.783,12.338,4.783Zm1.848,7.935c-.544,3.913-1.9,5.055-3.207,5.055H9.946l1.467-9.4H12.5C13.86,8.37,14.621,9.511,14.186,12.718ZM36.47,11.142H32.393l.544-2.881h5.272l.544-3.424H30L27.447,21.306H30.98l1.033-6.631h3.968ZM21.958,14.621h3.859l.544-3.642H22.393l.38-2.826h5.381l.489-3.37h-8.8l-2.5,16.468h8.8l.489-3.478H21.36ZM40.927,4.783,34.459,21.306H38.1l.924-2.283h3.75l.38,2.283h3.587L44.188,4.783Zm-.6,10.707,1.359-3.968.544,3.968Z"/>
+  </g>
 </svg>
