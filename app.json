@@ -234,6 +234,8 @@
   "author": {
     "name": "Thomas Torp"
   },
+  "source": "https://github.com/torp93/homey-defa-power",
+  "support": "https://github.com/torp93/homey-defa-power/issues",
   "flow": {
     "triggers": [
       {
