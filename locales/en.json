@@ -1,10 +1,20 @@
 {
+  "status": {
+    "no_error": "No error"
+  },
   "errors": {
     "session_expired": "The CloudCharge login is no longer valid. Log in again under the app settings and the charger comes back on its own.",
     "unreachable": "Cannot reach CloudCharge.",
     "missing_alias": "This device has no alias stored, so charging cannot be started or stopped. Remove it and add it again.",
     "local_disabled": "Local current control is not set up. Enable it in the device settings and fill in the charger's IP address and PIN.",
     "stop_forbidden": "CloudCharge refuses to stop. Usually this means no charging session is running — check whether the charger reads as available. If a car is plugged in and charging, the session may have started without authorisation because Plug & Charge is on, in which case it is not counted as yours.",
+    "current_out_of_range": "The charging current must be between __min__ and __max__ A for this installation.",
+    "current_not_integer": "The charging current must be a whole number of amps.",
+    "clu_incomplete_config": "Could not read a complete configuration from the charger, so nothing was changed. Try again shortly.",
+    "clu_config_changed": "The installation settings on the charger have changed since the device was added, so the write was cancelled as a safety measure. Remove the device and add it again if the change was intentional.",
+    "clu_ambiguous_connector": "The charger has several charge points and the app cannot tell which one belongs to this device.",
+    "clu_bad_pin": "The charger did not accept the PIN. Check the configurator PIN in the device settings.",
+    "clu_unreachable": "Cannot reach the charger on your local network. Check the IP address in the device settings.",
     "start_forbidden": "CloudCharge refused to start charging. Check that the charger is shared with your account and that the car is plugged in."
   },
   "pair": {

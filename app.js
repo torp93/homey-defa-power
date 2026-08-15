@@ -21,6 +21,9 @@ const TRIGGER_CARDS = [
   'defa_status_changed',
   'defa_error_occurred',
   'defa_error_cleared',
+  'defa_eco_mode_changed',
+  'defa_plug_and_charge_changed',
+  'defa_charge_offline_changed',
 ];
 
 class DefaPowerApp extends Homey.App {

@@ -50,6 +50,7 @@ class DefaChargerDevice extends Homey.Device {
     // ofte nok til at det ellers koster ett bortkastet skykall hver gang.
     this._ecoSupported = this.getStoreValue('ecoUnsupported') !== true;
     this._clu = null;
+    this._cluLimits = null;
     this._cluRefreshedAt = 0;
     this._cluWriteSeq = 0;
     this._cluSnapshot = null;
@@ -200,7 +201,11 @@ class DefaChargerDevice extends Homey.Device {
       if (value === null || !this.hasCapability(capability)) continue;
       if (previous && previous[capability] === value) continue;
 
-      await this.setCapabilityValue(capability, value)
+      // Rå API-strenger skal ikke vises i norsk UI. Diffing og flow-tokens
+      // bruker fortsatt råverdien, så feilkoden er intakt for diagnostikk.
+      const shown = capability === 'defa_error_code' ? this.errorCodeText(value) : value;
+
+      await this.setCapabilityValue(capability, shown)
         .then(() => { changed = true; })
         .catch((error) => {
           applied[capability] = previous ? previous[capability] : null;
@@ -286,6 +291,33 @@ class DefaChargerDevice extends Homey.Device {
     return backoffSeconds(this.idleInterval(), this._consecutiveFailures);
   }
 
+  // Setter en av/på-kapabilitet og fyrer tilhørende trigger hvis verdien
+  // faktisk endret seg. Brukes for innstillinger som også kan endres fra
+  // DEFA-appen eller laderen — da skal Homey-flowen fyre selv om endringen
+  // ikke kom herfra.
+  async applyToggle(capability, triggerId, value) {
+    if (value === null || value === undefined) return;
+    if (!this.hasCapability(capability)) return;
+
+    const before = this.getCapabilityValue(capability);
+    if (before === value) return;
+
+    await this.setCapabilityValue(capability, value)
+      .catch((error) => this.error(`Kunne ikke sette ${capability}`, error.message));
+
+    // Første avlesning etter oppstart er ikke en endring brukeren gjorde.
+    if (before === null || before === undefined) return;
+
+    await this.homey.app.triggerDeviceFlow(triggerId, this, { enabled: value });
+  }
+
+  // «NoError» er en API-verdi, ikke noe en bruker skal lese. Ekte feilkoder
+  // vises derimot som de er — de er det support trenger.
+  errorCodeText(code) {
+    if (!code || code === 'NoError') return this.homey.__('status.no_error');
+    return code;
+  }
+
   timestamp() {
     try {
       // Formattereren caches — toLocaleString bygger en ny Intl.DateTimeFormat
@@ -355,7 +387,7 @@ class DefaChargerDevice extends Homey.Device {
       const configuration = await this.client().getEcoModeConfiguration(this._connectorId);
 
       if (configuration && typeof configuration.active === 'boolean') {
-        await this.setCapabilityValue('defa_eco_mode', configuration.active).catch(() => {});
+        await this.applyToggle('defa_eco_mode', 'defa_eco_mode_changed', configuration.active);
       }
     } catch (error) {
       if (error.isUnsupported) {
@@ -502,8 +534,11 @@ class DefaChargerDevice extends Homey.Device {
       const config = await this._clu.getConfig();
       if (seqAtStart !== this._cluWriteSeq) return;
 
-      // Skyveknappen skal ikke tilby mer enn anlegget tåler.
+      // Skyveknappen skal ikke tilby mer enn anlegget tåler. Grensene tas vare
+      // på, slik at et Flow-kort som sender en for høy verdi kan si nøyaktig
+      // hva denne installasjonen tillater.
       const limits = resolveCurrentLimits(config);
+      this._cluLimits = limits;
       await this.setCapabilityOptions('defa_charge_current', { min: limits.min, max: limits.max })
         .catch(() => {});
 
@@ -538,15 +573,13 @@ class DefaChargerDevice extends Homey.Device {
 
       // Skrives bare ved endring; feil logges, for ellers er «kapabiliteten
       // mangler» og «verdien er null» umulig å skille fra hverandre.
-      const setIfChanged = (capability, value) => {
-        if (value === null || this.getCapabilityValue(capability) === value) return Promise.resolve();
-        return this.setCapabilityValue(capability, value)
-          .catch((error) => this.error(`Kunne ikke sette ${capability}`, error.message));
-      };
+      if (amps !== null && this.getCapabilityValue('defa_charge_current') !== amps) {
+        await this.setCapabilityValue('defa_charge_current', amps)
+          .catch((error) => this.error('Kunne ikke sette defa_charge_current', error.message));
+      }
 
-      await setIfChanged('defa_charge_current', amps);
-      await setIfChanged('defa_plug_and_charge', plugAndCharge);
-      await setIfChanged('defa_charge_offline', offline);
+      await this.applyToggle('defa_plug_and_charge', 'defa_plug_and_charge_changed', plugAndCharge);
+      await this.applyToggle('defa_charge_offline', 'defa_charge_offline_changed', offline);
     } catch (error) {
       this.error('Kunne ikke lese innstillinger fra laderen', error.message);
     }
@@ -556,10 +589,49 @@ class DefaChargerDevice extends Homey.Device {
     return { expected: this.getStoreValue('cluBaseline') || null };
   }
 
+  // Feilene fra lib/ er engelskfrie koder med detaljer; her får de en
+  // lokalisert tekst brukeren forstår. Originalfeilen logges uendret, slik at
+  // support fortsatt ser den faktiske årsaken.
+  localizeCluError(error, context) {
+    const code = error && error.code;
+    this.error(`Lokal styring feilet (${context})`, code || '', error && error.message);
+
+    const keys = {
+      out_of_range: 'errors.current_out_of_range',
+      not_integer: 'errors.current_not_integer',
+      incomplete_config: 'errors.clu_incomplete_config',
+      config_changed: 'errors.clu_config_changed',
+      ambiguous_connector: 'errors.clu_ambiguous_connector',
+      connector_not_found: 'errors.clu_ambiguous_connector',
+      bad_pin: 'errors.clu_bad_pin',
+      no_cookie: 'errors.clu_bad_pin',
+      no_host: 'errors.clu_unreachable',
+      invalid_json: 'errors.clu_unreachable',
+    };
+
+    const key = keys[code];
+    if (!key) return error;
+
+    if (code === 'out_of_range') {
+      const limits = this._cluLimits || {};
+      return new Error(this.homey.__(key, {
+        min: limits.min === undefined ? 7 : limits.min,
+        max: limits.max === undefined ? 32 : limits.max,
+      }));
+    }
+
+    return new Error(this.homey.__(key));
+  }
+
   async setChargeCurrent(amps) {
     if (!this._clu) throw new Error(this.homey.__('errors.local_disabled'));
 
-    const result = await this._clu.setChargeCurrent(Math.round(Number(amps)), this.writeOptions());
+    let result;
+    try {
+      result = await this._clu.setChargeCurrent(Math.round(Number(amps)), this.writeOptions());
+    } catch (error) {
+      throw this.localizeCluError(error, 'ladestrøm');
+    }
 
     this._cluWriteSeq += 1;
     this._cluRefreshedAt = Date.now();
@@ -574,9 +646,14 @@ class DefaChargerDevice extends Homey.Device {
   async setPlugAndCharge(enabled) {
     if (!this._clu) throw new Error(this.homey.__('errors.local_disabled'));
 
-    const result = await this._clu.setPlugAndCharge(
-      this.cluAddress(), Boolean(enabled), this.writeOptions(),
-    );
+    let result;
+    try {
+      result = await this._clu.setPlugAndCharge(
+        this.cluAddress(), Boolean(enabled), this.writeOptions(),
+      );
+    } catch (error) {
+      throw this.localizeCluError(error, 'Plug & Charge');
+    }
 
     this._cluWriteSeq += 1;
     this._cluRefreshedAt = Date.now();
@@ -591,7 +668,12 @@ class DefaChargerDevice extends Homey.Device {
   async setChargeOffline(enabled) {
     if (!this._clu) throw new Error(this.homey.__('errors.local_disabled'));
 
-    const result = await this._clu.setChargeOffline(Boolean(enabled), this.writeOptions());
+    let result;
+    try {
+      result = await this._clu.setChargeOffline(Boolean(enabled), this.writeOptions());
+    } catch (error) {
+      throw this.localizeCluError(error, 'offline-lading');
+    }
 
     this._cluWriteSeq += 1;
     this._cluRefreshedAt = Date.now();

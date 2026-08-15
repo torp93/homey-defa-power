@@ -1,6 +1,6 @@
 {
   "id": "com.thomastorp.defa-power",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "compatibility": ">=12.4.5",
   "sdk": 3,
   "platforms": [
@@ -11,8 +11,8 @@
     "no": "DEFA Power"
   },
   "description": {
-    "en": "Monitor and control a DEFA Power or eRange charger through the CloudCharge API.",
-    "no": "Overvåk og styr en DEFA Power- eller eRange-lader gjennom CloudCharge-API-et."
+    "en": "Your DEFA charger, on your terms.",
+    "no": "DEFA-laderen din, på dine premisser."
   },
   "category": [
     "energy"
@@ -236,6 +236,19 @@
   },
   "source": "https://github.com/torp93/homey-defa-power",
   "support": "https://github.com/torp93/homey-defa-power/issues",
+  "bugs": {
+    "url": "https://github.com/torp93/homey-defa-power/issues"
+  },
+  "contributing": {
+    "donate": {
+      "paypal": {
+        "username": "torpthomas"
+      },
+      "githubSponsors": {
+        "username": "torp93"
+      }
+    }
+  },
   "flow": {
     "triggers": [
       {
@@ -244,7 +257,7 @@
           "en": "Charging starts",
           "no": "Ladingen starter"
         },
-        "highlight": true,
+        "deprecated": true,
         "args": [
           { "name": "device", "type": "device", "filter": "driver_id=charger" }
         ]
@@ -252,10 +265,13 @@
       {
         "id": "defa_charging_stopped",
         "title": {
-          "en": "Charging stops",
-          "no": "Ladingen stopper"
+          "en": "A charging session ends",
+          "no": "En ladeøkt avsluttes"
         },
-        "highlight": true,
+        "hint": {
+          "en": "Also gives you the energy used during the session that just ended.",
+          "no": "Gir deg også energien som gikk med i økten som nettopp ble avsluttet."
+        },
         "args": [
           { "name": "device", "type": "device", "filter": "driver_id=charger" }
         ],
@@ -333,6 +349,68 @@
         "args": [
           { "name": "device", "type": "device", "filter": "driver_id=charger" }
         ]
+      },
+      {
+        "id": "defa_eco_mode_changed",
+        "title": {
+          "en": "Eco mode is turned on or off",
+          "no": "Eco-modus slås på eller av"
+        },
+        "hint": {
+          "en": "Also fires when eco mode is changed from the DEFA app or the charger itself.",
+          "no": "Fyrer også når eco-modus endres fra DEFA-appen eller laderen selv."
+        },
+        "args": [
+          { "name": "device", "type": "device", "filter": "driver_id=charger" }
+        ],
+        "tokens": [
+          {
+            "name": "enabled",
+            "type": "boolean",
+            "title": { "en": "Turned on", "no": "Slått på" },
+            "example": true
+          }
+        ]
+      },
+      {
+        "id": "defa_plug_and_charge_changed",
+        "title": {
+          "en": "Plug & Charge is turned on or off",
+          "no": "Plug & Charge slås på eller av"
+        },
+        "hint": {
+          "en": "Also fires when the setting is changed outside Homey. With Plug & Charge on, anyone who plugs in can charge without authorisation.",
+          "no": "Fyrer også når innstillingen endres utenfor Homey. Med Plug & Charge på kan hvem som helst som plugger seg inn lade uten autorisasjon."
+        },
+        "args": [
+          { "name": "device", "type": "device", "filter": "driver_id=charger" }
+        ],
+        "tokens": [
+          {
+            "name": "enabled",
+            "type": "boolean",
+            "title": { "en": "Turned on", "no": "Slått på" },
+            "example": true
+          }
+        ]
+      },
+      {
+        "id": "defa_charge_offline_changed",
+        "title": {
+          "en": "Offline charging is turned on or off",
+          "no": "Offline-lading slås på eller av"
+        },
+        "args": [
+          { "name": "device", "type": "device", "filter": "driver_id=charger" }
+        ],
+        "tokens": [
+          {
+            "name": "enabled",
+            "type": "boolean",
+            "title": { "en": "Turned on", "no": "Slått på" },
+            "example": true
+          }
+        ]
       }
     ],
     "conditions": [
@@ -342,6 +420,7 @@
           "en": "The charger !{{is|isn't}} charging",
           "no": "Laderen !{{lader|lader ikke}}"
         },
+        "deprecated": true,
         "args": [
           { "name": "device", "type": "device", "filter": "driver_id=charger" }
         ]
@@ -404,7 +483,7 @@
           "en": "Start charging",
           "no": "Start lading"
         },
-        "highlight": true,
+        "deprecated": true,
         "args": [
           { "name": "device", "type": "device", "filter": "driver_id=charger" }
         ]
@@ -415,7 +494,7 @@
           "en": "Stop charging",
           "no": "Stopp lading"
         },
-        "highlight": true,
+        "deprecated": true,
         "args": [
           { "name": "device", "type": "device", "filter": "driver_id=charger" }
         ]
@@ -448,6 +527,10 @@
           "en": "Charge now, ignoring smart charging",
           "no": "Lad nå, overstyr smartlading"
         },
+        "hint": {
+          "en": "Overrides the smart charging schedule so the car charges now instead of waiting for the planned hours. The schedule itself is kept and takes effect again for the next session.",
+          "no": "Overstyrer smartladingsplanen slik at bilen lader nå i stedet for å vente på de planlagte timene. Selve planen beholdes og gjelder igjen for neste ladeøkt."
+        },
         "args": [
           { "name": "device", "type": "device", "filter": "driver_id=charger" }
         ]
@@ -456,11 +539,15 @@
         "id": "defa_action_reset",
         "title": {
           "en": "Restart the charger",
-          "no": "Restart laderen"
+          "no": "Start laderen på nytt"
         },
         "titleFormatted": {
-          "en": "Restart the charger ([[type]])",
-          "no": "Restart laderen ([[type]])"
+          "en": "Restart the charger with a [[type]] reset",
+          "no": "Start laderen på nytt med [[type]] omstart"
+        },
+        "hint": {
+          "en": "A soft reset restarts the charger's software and ends an ongoing charging session cleanly first. A hard reset reboots the charger as if the power had been cut, without ending the session cleanly. Use soft unless the charger has stopped responding.",
+          "no": "Myk omstart starter laderens programvare på nytt og avslutter en pågående ladeøkt ryddig først. Hard omstart starter laderen på nytt som ved strømbrudd, uten å avslutte økten ryddig. Bruk myk med mindre laderen har sluttet å svare."
         },
         "args": [
           { "name": "device", "type": "device", "filter": "driver_id=charger" },
@@ -468,8 +555,8 @@
             "name": "type",
             "type": "dropdown",
             "values": [
-              { "id": "soft", "label": { "en": "soft", "no": "mykt" } },
-              { "id": "hard", "label": { "en": "hard", "no": "hardt" } }
+              { "id": "soft", "label": { "en": "soft", "no": "myk" } },
+              { "id": "hard", "label": { "en": "hard", "no": "hard" } }
             ]
           }
         ]
@@ -479,6 +566,10 @@
         "title": {
           "en": "Refresh the charger data",
           "no": "Oppdater laderdata"
+        },
+        "hint": {
+          "en": "The data refreshes on its own. Use this to fetch the status right away, for example at the start of a Flow that acts on it.",
+          "no": "Dataene oppdateres av seg selv. Bruk denne for å hente status med én gang, for eksempel i starten av en Flow som handler på den."
         },
         "args": [
           { "name": "device", "type": "device", "filter": "driver_id=charger" }
@@ -517,8 +608,8 @@
           "no": "Slå Plug & Charge [[mode]]"
         },
         "hint": {
-          "en": "With Plug & Charge on, charging is free and starts without any authorisation — anyone who plugs in charges on your electricity.",
-          "no": "Med Plug & Charge på er lading gratis og starter uten autorisasjon — hvem som helst som plugger seg inn, lader på strømmen din."
+          "en": "On: charging starts as soon as a cable is connected, with no RFID tag or app needed. Anyone who plugs in charges on your electricity. Off: charging must be authorised first.",
+          "no": "På: lading starter så snart kabelen kobles til, uten RFID-brikke eller app. Hvem som helst som plugger seg inn, lader på strømmen din. Av: lading må autoriseres først."
         },
         "args": [
           { "name": "device", "type": "device", "filter": "driver_id=charger" },
@@ -543,8 +634,8 @@
           "no": "Slå offline-lading [[mode]]"
         },
         "hint": {
-          "en": "Enables Plug & Charge automatically if the charger loses its internet connection.",
-          "no": "Slår på Plug & Charge automatisk hvis laderen mister internettforbindelsen."
+          "en": "If the charger loses its internet connection it turns on Plug & Charge by itself, so charging still works while it is offline. Anyone who plugs in can then charge without authorisation until the connection is back.",
+          "no": "Mister laderen internettforbindelsen, slår den på Plug & Charge av seg selv, slik at lading fortsatt virker mens den er offline. Hvem som helst som plugger seg inn kan da lade uten autorisasjon til forbindelsen er tilbake."
         },
         "args": [
           { "name": "device", "type": "device", "filter": "driver_id=charger" },

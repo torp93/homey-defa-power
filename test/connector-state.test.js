@@ -89,12 +89,20 @@ test('normalizeChargingState maps the CloudCharge spellings', () => {
   assert.strictEqual(normalizeChargingState('Whatever'), 'unrecognized');
 });
 
-test('toEvChargerState collapses CloudCharge detail into Homey four states', () => {
+test('toEvChargerState maps onto the Homey EV charger states', () => {
   assert.strictEqual(toEvChargerState('charging', 'charging'), 'plugged_in_charging');
   assert.strictEqual(toEvChargerState('ev_connected', 'occupied'), 'plugged_in');
-  assert.strictEqual(toEvChargerState('suspended_ev', 'suspended_ev'), 'plugged_in');
   assert.strictEqual(toEvChargerState('idle', 'preparing'), 'plugged_in');
   assert.strictEqual(toEvChargerState('idle', 'available'), 'plugged_out');
+});
+
+test('a paused session uses Homey own paused state, not just plugged in', () => {
+  // Homey har plugged_in_paused. Å kollapse pause til «tilkoblet» kastet bort
+  // det brukeren faktisk vil se: at bilen står i, men ikke lader nå.
+  assert.strictEqual(toEvChargerState('suspended_ev', 'suspended_ev'), 'plugged_in_paused');
+  assert.strictEqual(toEvChargerState('idle', 'suspended_evse'), 'plugged_in_paused');
+  // Lading vinner fortsatt over pause hvis laderen melder begge deler.
+  assert.strictEqual(toEvChargerState('suspended_evse', 'charging'), 'plugged_in_charging');
 });
 
 test('toCapabilityValues converts kW to W', () => {
