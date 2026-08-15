@@ -9,6 +9,19 @@ CloudCharge service.
 > reverse-engineered and undocumented, and may stop working without notice if
 > DEFA changes something. Use at your own risk. No warranty — see `LICENSE`.
 
+## Install
+
+Test version in the Homey App Store:
+<https://homey.app/en-no/app/com.thomastorp.defa-power/DEFA-Power/test/>
+
+## Screenshots
+
+<img src="docs/screenshots/device.jpeg" width="360" alt="The charger in Homey, showing charging status, power, total energy and last update">
+
+The device with no car connected. Charging current, Plug & Charge and offline
+charging appear as controls once local control is enabled in the device
+settings.
+
 ## Why cloud and not the local network
 
 The charger's local web interface (the CLU Commissioning tool, Flask on port 80)

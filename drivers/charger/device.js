@@ -293,10 +293,13 @@ class DefaChargerDevice extends Homey.Device {
       // følger Homey, ikke en hardkodet norsk locale.
       if (!this._timeFormatter) {
         const locale = this.homey.i18n.getLanguage() === 'no' ? 'nb-NO' : 'en-GB';
+        // Kort format: flisen kutter av alt lengre enn dette.
         this._timeFormatter = new Intl.DateTimeFormat(locale, {
           timeZone: this.homey.clock.getTimezone(),
-          dateStyle: 'short',
-          timeStyle: 'medium',
+          day: '2-digit',
+          month: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
         });
       }
       return this._timeFormatter.format(new Date());

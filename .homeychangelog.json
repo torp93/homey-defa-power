@@ -1,4 +1,8 @@
 {
+  "0.3.2": {
+    "en": "Tidier device view: the two detailed status sensors are hidden from the tile (still available in Flows), and the last-update timestamp no longer gets cut off.",
+    "no": "Ryddigere enhetsvisning: de to detaljerte statussensorene er skjult fra flisen (fortsatt tilgjengelige i Flows), og tidsstempelet for siste oppdatering blir ikke lenger kuttet av."
+  },
   "0.3.1": {
     "en": "New 'error cleared' trigger and 'has an error' condition. Restart/refresh moved to maintenance actions. Failed reads back off instead of retrying every poll, a logout that was already dead no longer reports failure, and assorted hardening.",
     "no": "Ny «feilen er borte»-trigger og «har feil»-betingelse. Restart/oppdater flyttet til vedlikehold. Feilede lesinger venter i stedet for å prøve på hver polling, en utlogging som alt var død melder ikke lenger feil, og diverse herding."

@@ -1,6 +1,6 @@
 {
   "id": "com.thomastorp.defa-power",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "compatibility": ">=12.4.5",
   "sdk": 3,
   "platforms": [
@@ -50,7 +50,7 @@
       },
       "getable": true,
       "setable": false,
-      "uiComponent": "sensor",
+      "uiComponent": null,
       "icon": "/assets/capability-icons/status.svg",
       "values": [
         { "id": "available", "title": { "en": "Available", "no": "Ledig" } },
@@ -78,7 +78,7 @@
       },
       "getable": true,
       "setable": false,
-      "uiComponent": "sensor",
+      "uiComponent": null,
       "icon": "/assets/capability-icons/charging.svg",
       "values": [
         { "id": "idle", "title": { "en": "Idle", "no": "Inaktiv" } },
