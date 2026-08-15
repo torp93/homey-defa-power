@@ -16,7 +16,9 @@ Test version in the Homey App Store:
 
 ## Screenshots
 
-<img src="docs/screenshots/device.jpeg" width="360" alt="The charger in Homey, showing charging status, power, total energy and last update">
+<p>
+  <a href="docs/screenshots/device.jpg"><img src="docs/screenshots/device.jpg" alt="Device view" width="250"></a>
+</p>
 
 The device with no car connected. Charging current, Plug & Charge and offline
 charging appear as controls once local control is enabled in the device
