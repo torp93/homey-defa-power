@@ -194,3 +194,45 @@ test('pickConnectors deduplicates a connector shared through both lists', () => 
   };
   assert.strictEqual(pickConnectors(payload).length, 1);
 });
+
+test('pickConnectors finds a charger under a list name we have never seen', () => {
+  // En bruker meldte «kontoen har ingen ladere» på en konto med lader. Vi har
+  // bare sett receivingAccess/givingAccess på én konto, så letingen må ikke
+  // være låst til de to navnene.
+  const connectors = pickConnectors({ someOtherAccess: MY_CHARGERS.receivingAccess });
+  assert.strictEqual(connectors.length, 1);
+  assert.strictEqual(connectors[0].id, '11111111-1111-4111-8111-111111111111');
+});
+
+test('pickConnectors ignores top-level lists that are not charger entries', () => {
+  assert.deepStrictEqual(pickConnectors({ notifications: [{ text: 'hei' }] }), []);
+  assert.deepStrictEqual(pickConnectors({ tags: ['a', 'b'], timestamp: 1 }), []);
+});
+
+test('pickConnectors accepts a bare top-level array of access entries', () => {
+  // /chargers/private-formen er ukjent — svaret kan være en array rett ut.
+  const connectors = pickConnectors(MY_CHARGERS.receivingAccess);
+  assert.strictEqual(connectors.length, 1);
+});
+
+test('pickConnectors reads the /chargers/private wrapper', () => {
+  // /chargers/private pakker ladepunktet i `data`, ikke `chargePoint`.
+  // Bekreftet mot PrivateChargePoint i ha-defa-power sin models.py.
+  const priv = MY_CHARGERS.receivingAccess.map((entry) => ({
+    access: 'OWNER',
+    type: 'PRIVATE',
+    data: entry.chargePoint,
+  }));
+
+  const connectors = pickConnectors(priv);
+  assert.strictEqual(connectors.length, 1);
+  assert.strictEqual(connectors[0].id, '11111111-1111-4111-8111-111111111111');
+  assert.strictEqual(connectors[0].alias, '00.00.00.0000');
+});
+
+test('pickConnectors accepts charge points without an access wrapper', () => {
+  const bare = MY_CHARGERS.receivingAccess.map((entry) => entry.chargePoint);
+  const connectors = pickConnectors({ chargers: bare });
+  assert.strictEqual(connectors.length, 1);
+  assert.strictEqual(connectors[0].id, '11111111-1111-4111-8111-111111111111');
+});

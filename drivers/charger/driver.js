@@ -8,6 +8,17 @@ const {
   normalizePhoneNumber,
 } = require('../../lib/cloudcharge-config');
 
+// Formen på et API-svar for diagnostikk: nøkkelnavn og antall, aldri verdier,
+// siden svarene inneholder tokens. Vises i paringsskjermen ved tomt resultat.
+function describeShape(payload) {
+  if (Array.isArray(payload)) return `[${payload.length}]`;
+  if (!payload || typeof payload !== 'object') return `(${typeof payload})`;
+  const shape = Object.entries(payload)
+    .map(([key, value]) => (Array.isArray(value) ? `${key}[${value.length}]` : key))
+    .join(' ');
+  return shape || '(tomt objekt)';
+}
+
 // CloudCharge-feilkoder oversatt til noe paringsdialogen kan vise.
 const ERROR_KEYS = {
   invalid_phone_number: 'pair.errors.invalid_phone',
@@ -86,6 +97,11 @@ class DefaChargerDriver extends Homey.Driver {
     // kaller aldri handleren sin når man navigerer til den fra en egen
     // visning, og visningen ble bare stående blank.
     session.setHandler('list_connectors', async () => this.listConnectors());
+
+    // Vises i paringsskjermen når lista er tom. Uten dette må brukeren finne
+    // fram til en diagnoserapport for å fortelle hva som skjedde, og da kommer
+    // rapporten sjelden. Kun formen på svaret — nøkkelnavn og antall.
+    session.setHandler('empty_reason', async () => this._lastEmptyShape || '');
   }
 
   translate(error) {
@@ -101,6 +117,12 @@ class DefaChargerDriver extends Homey.Driver {
     const client = this.homey.app.getClient();
     this.log(`list_connectors kjører — sesjon: ${client.hasSession() ? 'ja' : 'nei'}`);
 
+    // En lader kan ligge i én av to lister, og ikke nødvendigvis i begge:
+    //   /mychargers       — ladere du har fått tilgang til
+    //   /chargers/private — dine egne private ladepunkt
+    // ha-defa-power slår sammen begge for å finne ladere, og en bruker har
+    // meldt om en lader som er usynlig i /mychargers. Derfor spørres begge, og
+    // bare /mychargers får velte paringen hvis den feiler.
     let chargers;
     try {
       chargers = await client.getMyChargers();
@@ -109,8 +131,30 @@ class DefaChargerDriver extends Homey.Driver {
       throw this.translate(error);
     }
 
-    const connectors = pickConnectors(chargers);
-    this.log(`Fant ${connectors.length} ladepunkt(er) på kontoen`);
+    let priv = null;
+    let privShape = 'feilet';
+    try {
+      priv = await client.getPrivateChargers();
+      privShape = describeShape(priv);
+    } catch (error) {
+      this.error('/chargers/private feilet', error.code || '', error.message);
+    }
+
+    const seen = new Set();
+    const connectors = [...pickConnectors(chargers), ...pickConnectors(priv)]
+      .filter((connector) => {
+        if (seen.has(connector.id)) return false;
+        seen.add(connector.id);
+        return true;
+      });
+
+    this.log(`Fant ${connectors.length} ladepunkt(er) — mychargers: ${describeShape(chargers)}, private: ${privShape}`);
+
+    // Kun formen på svarene tas vare på — nøkkelnavn og antall, aldri verdier,
+    // siden svarene inneholder tokens.
+    this._lastEmptyShape = connectors.length === 0
+      ? `mychargers: ${describeShape(chargers)} | private: ${privShape}`
+      : null;
 
     return connectors.map((connector) => ({
       name: connector.name,

@@ -27,6 +27,12 @@
     #message { margin-top: 16px; font-size: 13px; line-height: 1.5; white-space: pre-wrap; }
     .bad { color: #b3261e; }
     .ok { color: #157a3c; }
+    /* Diagnoselinja når kontoen ser tom ut. Monospace fordi den skal leses av
+       et skjermbilde, og user-select så den også kan kopieres. */
+    .shape { display: block; margin-top: 14px; padding: 8px 10px; border-radius: 6px;
+             background: #f2f2f2; color: #555; font-size: 12px;
+             font-family: ui-monospace, Menlo, Consolas, monospace;
+             word-break: break-all; user-select: text; -webkit-user-select: text; }
     .step { display: none; }
     .step.active { display: block; }
   </style>
@@ -89,7 +95,9 @@
         loading: 'Looking for chargers…',
         adding: 'Adding…',
         added: 'Added.',
-        none: 'The account has no chargers.',
+        none: 'The account has no chargers. Check that you signed in with the same '
+            + 'mobile number the charger is registered to. If it is, send the developer '
+            + 'a screenshot of this screen, including the line below.',
         repaired: 'Logged in again. You can close this.',
         needPhone: 'Enter a mobile number.',
         needCode: 'Enter the code from the SMS.',
@@ -119,7 +127,9 @@
         loading: 'Ser etter ladere…',
         adding: 'Legger til…',
         added: 'Lagt til.',
-        none: 'Kontoen har ingen ladere.',
+        none: 'Kontoen har ingen ladere. Sjekk at du logget inn med samme mobilnummer '
+            + 'som laderen er registrert på. Stemmer det, send utvikleren et skjermbilde '
+            + 'av denne skjermen, inkludert linja under.',
         repaired: 'Innlogget på nytt. Du kan lukke dette.',
         needPhone: 'Skriv inn et mobilnummer.',
         needCode: 'Skriv inn koden fra SMS-en.',
@@ -320,6 +330,17 @@
 
         if (!list.length) {
           say(t('none'), 'bad');
+
+          // Vis hva CloudCharge faktisk svarte, rett på skjermen. Da holder det
+          // med et skjermbilde — brukeren slipper å lete opp en diagnoserapport.
+          emitEvent('empty_reason', {}).then(function (shape) {
+            if (!shape) return;
+            var note = document.createElement('small');
+            note.className = 'shape';
+            note.textContent = 'CloudCharge: ' + shape;
+            $('devices').appendChild(note);
+          }).catch(function () { /* detaljen er en bonus, ikke et krav */ });
+
           return;
         }
 
