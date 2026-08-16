@@ -1,4 +1,8 @@
 {
+  "1.1.2": {
+    "en": "Driver icon redrawn on the canvas size Homey asks for.",
+    "no": "Driverikonet tegnet på lerretstørrelsen Homey ber om."
+  },
   "1.1.1": {
     "en": "The app icon is now the DEFA logo, and the brand colour matches it.",
     "no": "Appikonet er nå DEFA-logoen, og merkefargen er justert til å matche den."
