@@ -149,12 +149,12 @@ class DefaPowerApp extends Homey.App {
       .getConditionCard('defa_condition_eco_mode')
       .registerRunListener(({ device }) => Boolean(device.getCapabilityValue('defa_eco_mode')));
 
+    // Enheten svarer på denne selv, fra råverdien. Kapabiliteten inneholder den
+    // oversatte teksten, så sammenligningen som lå her traff aldri 'NoError' og
+    // betingelsen svarte sant også på en feilfri lader.
     this.homey.flow
       .getConditionCard('defa_condition_error')
-      .registerRunListener(({ device }) => {
-        const code = device.getCapabilityValue('defa_error_code');
-        return typeof code === 'string' && code !== '' && code !== 'NoError';
-      });
+      .registerRunListener(({ device }) => device.hasActiveError());
 
     this.homey.flow
       .getActionCard('defa_action_start')

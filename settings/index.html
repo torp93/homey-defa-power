@@ -124,7 +124,13 @@
         errInvalidPhone: 'That does not look like a valid mobile number.',
         errInvalidCode: 'That code was not accepted. Request a new one.',
         errNoAttempt: 'No code is pending. Request a new one.',
-        errNoPhone: 'Request a code first.'
+        errNoPhone: 'Request a code first.',
+        errUnauthorized: 'CloudCharge rejected the login. Log in again.',
+        errDevToken: 'CloudCharge rejected the app identity.',
+        errRateLimited: 'CloudCharge is rate limiting us. Wait a moment and try again.',
+        errServer: 'CloudCharge is having trouble at their end. Try again shortly.',
+        errUnreachable: 'Cannot reach CloudCharge. Check that Homey is online.',
+        errNotLoggedIn: 'Not logged in.'
       },
       no: {
         statusTitle: 'CloudCharge-innlogging',
@@ -169,7 +175,13 @@
         errInvalidPhone: 'Dette ser ikke ut som et gyldig mobilnummer.',
         errInvalidCode: 'Koden ble ikke godtatt. Be om en ny.',
         errNoAttempt: 'Det ligger ingen kode og venter. Be om en ny.',
-        errNoPhone: 'Be om en kode først.'
+        errNoPhone: 'Be om en kode først.',
+        errUnauthorized: 'CloudCharge avviste innloggingen. Logg inn på nytt.',
+        errDevToken: 'CloudCharge avviste appidentiteten.',
+        errRateLimited: 'CloudCharge struper oss. Vent litt og prøv igjen.',
+        errServer: 'CloudCharge har trøbbel hos seg. Prøv igjen om litt.',
+        errUnreachable: 'Får ikke kontakt med CloudCharge. Sjekk at Homey er på nett.',
+        errNotLoggedIn: 'Ikke innlogget.'
       }
     };
 
@@ -177,7 +189,12 @@
       invalid_phone_number: 'errInvalidPhone',
       invalid_code: 'errInvalidCode',
       no_login_attempt: 'errNoAttempt',
-      no_phone: 'errNoPhone'
+      no_phone: 'errNoPhone',
+      unauthorized: 'errUnauthorized',
+      invalid_dev_token: 'errDevToken',
+      rate_limited: 'errRateLimited',
+      server_error: 'errServer',
+      not_logged_in: 'errNotLoggedIn'
     };
 
     const SLOT_NAMES = { cloud_charge: 'CloudCharge', defa_power: 'DEFA Power', custom: '—' };
@@ -194,10 +211,15 @@
         result.className = className || '';
       }
 
+      // Feilmeldingene fra appen er på norsk — de er skrevet for loggen, ikke
+      // for et engelsk UI. Derfor oversettes den stabile koden, og faller vi
+      // gjennom, viser vi koden selv. Den er språknøytral og nyttig i en
+      // feilrapport; den norske setningen var ingen av delene.
       function describe(response) {
-        const key = ERROR_KEYS[response && response.code];
+        const code = response && response.code;
+        const key = ERROR_KEYS[code];
         if (key) return t(key);
-        return t('failed') + ((response && (response.message || response.code)) || '');
+        return t('failed') + (code || '');
       }
 
       function applyStrings() {

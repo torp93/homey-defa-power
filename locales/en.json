@@ -15,7 +15,10 @@
     "clu_ambiguous_connector": "The charger has several charge points and the app cannot tell which one belongs to this device.",
     "clu_bad_pin": "The charger did not accept the PIN. Check the configurator PIN in the device settings.",
     "clu_unreachable": "Cannot reach the charger on your local network. Check the IP address in the device settings.",
-    "start_forbidden": "CloudCharge refused to start charging. Check that the charger is shared with your account and that the car is plugged in."
+    "start_forbidden": "CloudCharge refused to start charging. Check that the charger is shared with your account and that the car is plugged in.",
+    "eco_read_failed": "Could not read the current eco mode configuration from CloudCharge, so nothing was changed. Try again shortly.",
+    "clu_refused": "The charger refused the request. Try again shortly, and check the configurator PIN if it keeps happening.",
+    "clu_write_uncertain": "The charger did not answer in time, so it is unclear whether the change was applied. Check the charger before trying again — the app will not repeat the write on its own."
   },
   "pair": {
     "errors": {
@@ -24,7 +27,8 @@
       "no_login_attempt": "No code is pending for this number. Request a new one.",
       "invalid_dev_token": "CloudCharge rejected the app identity.",
       "unauthorized": "CloudCharge rejected the login.",
-      "no_phone": "Start over and enter your mobile number first."
+      "no_phone": "Start over and enter your mobile number first.",
+      "all_paired": "Every charger on this account has already been added to Homey. If you came here to sign in again, that is done — the charger comes back on its own."
     }
   }
 }

@@ -7,7 +7,11 @@ const {
   normalizeStatus,
   normalizeChargingState,
   toEvChargerState,
+  isOperationalData,
   toCapabilityValues,
+  pickConnectorsFrom,
+  currentAlternatives,
+  currentFromChargePoint,
   isCharging,
   isPluggedIn,
   hasError,
@@ -235,4 +239,105 @@ test('pickConnectors accepts charge points without an access wrapper', () => {
   const connectors = pickConnectors({ chargers: bare });
   assert.strictEqual(connectors.length, 1);
   assert.strictEqual(connectors[0].id, '11111111-1111-4111-8111-111111111111');
+});
+
+// --- Ugyldige 200-svar må ikke bli en falsk trygg tilstand ----------------
+//
+// CloudCharge kan svare 200 med tom kropp (klienten returnerer null) eller med
+// en HTML-feilside fra en lastbalanserer (klienten returnerer råteksten).
+// Uten en vakt oversatte toCapabilityValues() begge til «frakoblet, 0 W,
+// ingen feil», og device.poll() fyrte da fire flow-triggere midt i en
+// pågående ladeøkt samtidig som en ekte feilkode ble borte.
+
+test('isOperationalData rejects the payloads a broken 200 actually produces', () => {
+  assert.strictEqual(isOperationalData(null), false, 'tom kropp');
+  assert.strictEqual(isOperationalData(undefined), false);
+  assert.strictEqual(isOperationalData('<html>502 Bad Gateway</html>'), false, 'ugyldig JSON');
+  assert.strictEqual(isOperationalData(''), false);
+  assert.strictEqual(isOperationalData([]), false, 'array er ikke operationaldata');
+  assert.strictEqual(isOperationalData(IDLE_OPERATIONAL_DATA), true);
+  // Et objekt uten ocpp er fortsatt et svar — vakten skal ikke være strengere
+  // enn nødvendig, ellers avvises gyldige svar med felter vi ikke kjenner.
+  assert.strictEqual(isOperationalData({}), true);
+});
+
+test('a broken 200 would otherwise unplug the car, so the guard must reject it', () => {
+  // Dokumenterer hvorfor vakten finnes: dette er utfallet den forhindrer.
+  const values = toCapabilityValues(null);
+  assert.strictEqual(values.evcharger_charging_state, 'plugged_out');
+  assert.strictEqual(values.evcharger_charging, false);
+  // Derfor må device.poll() aldri mate dette inn i applyValues().
+  assert.strictEqual(isOperationalData(null), false);
+});
+
+test('a missing errorCode is unknown, not "no error"', () => {
+  // «Vet ingenting» skal ikke bli «ingen feil». null skrives ikke til
+  // kapabiliteten, så siste kjente feilkode står.
+  const { errorCode, ...withoutErrorCode } = IDLE_OPERATIONAL_DATA;
+  assert.strictEqual(toCapabilityValues(withoutErrorCode).defa_error_code, null);
+  // En tom streng fra API-et betyr derimot at laderen svarte, uten feil.
+  assert.strictEqual(toCapabilityValues({ ...IDLE_OPERATIONAL_DATA, errorCode: '' }).defa_error_code, 'NoError');
+  assert.strictEqual(toCapabilityValues(IDLE_OPERATIONAL_DATA).defa_error_code, 'NoError');
+});
+
+// --- Felles laderoppdagelse ----------------------------------------------
+
+test('pickConnectorsFrom merges both charger lists without duplicating', () => {
+  // Samme lader i begge endepunktene skal gi én enhet, ikke to.
+  const priv = MY_CHARGERS.receivingAccess.map((entry) => ({ data: entry.chargePoint }));
+  const merged = pickConnectorsFrom(MY_CHARGERS, priv);
+  assert.strictEqual(merged.length, 1);
+  assert.strictEqual(merged[0].id, '11111111-1111-4111-8111-111111111111');
+});
+
+test('pickConnectorsFrom finds a charger present in only one list', () => {
+  // Eierens lader ligger i /chargers/private mens /mychargers er helt tom —
+  // nøyaktig tilfellet en bruker rapporterte.
+  const empty = { timestamp: 1, receivingAccess: [], givingAccess: [] };
+  const priv = MY_CHARGERS.receivingAccess.map((entry) => ({ data: entry.chargePoint }));
+  assert.strictEqual(pickConnectorsFrom(empty, priv).length, 1);
+  // Og motsatt vei, når det private endepunktet feilet og ble null.
+  assert.strictEqual(pickConnectorsFrom(MY_CHARGERS, null).length, 1);
+});
+
+// --- Skybasert ladestrøm -------------------------------------------------
+
+test('currentAlternatives reads the amp keys and finds the range', () => {
+  // Svaret er { ampere: kW }, og nøklene kommer ikke nødvendigvis sortert.
+  const limits = currentAlternatives({ '20': 13.8, '6': 4.1, '16': 11.0 });
+  assert.deepStrictEqual(limits, { min: 6, max: 20, values: [6, 16, 20] });
+});
+
+test('currentAlternatives refuses anything that is not a usable answer', () => {
+  // Skulle disse gitt {min:0,max:0} ville skyveknappen i Homey blitt ubrukelig.
+  assert.strictEqual(currentAlternatives(null), null);
+  assert.strictEqual(currentAlternatives({}), null);
+  assert.strictEqual(currentAlternatives([]), null);
+  assert.strictEqual(currentAlternatives('CAPABILITY_NOT_FOUND'), null);
+  assert.strictEqual(currentAlternatives({ tull: 1 }), null);
+});
+
+test('currentFromChargePoint finds maxProfileCurrent for the right connector', () => {
+  // Gjeldende ladestrøm ligger her, ikke i /operationaldata.
+  const point = {
+    id: 'cp-1',
+    aliasMap: {
+      a1: { id: 'conn-1', maxProfileCurrent: 16 },
+      a2: { id: 'conn-2', maxProfileCurrent: 32 },
+    },
+  };
+
+  assert.strictEqual(currentFromChargePoint(point, 'conn-1'), 16);
+  assert.strictEqual(currentFromChargePoint(point, 'conn-2'), 32);
+  assert.strictEqual(currentFromChargePoint(point, 'ukjent'), null);
+});
+
+test('currentFromChargePoint accepts every wrapper the API uses', () => {
+  const point = { id: 'cp-1', aliasMap: { a1: { id: 'conn-1', maxProfileCurrent: 10 } } };
+
+  assert.strictEqual(currentFromChargePoint(point, 'conn-1'), 10, 'direkte');
+  assert.strictEqual(currentFromChargePoint({ data: point }, 'conn-1'), 10, 'private-innpakning');
+  assert.strictEqual(currentFromChargePoint({ chargePoint: point }, 'conn-1'), 10, 'access-innpakning');
+  assert.strictEqual(currentFromChargePoint({ receivingAccess: [{ chargePoint: point }] }, 'conn-1'), 10, 'liste');
+  assert.strictEqual(currentFromChargePoint(null, 'conn-1'), null);
 });

@@ -9,7 +9,7 @@ const {
   isValidPhoneNumber,
   isValidSmsCode,
 } = require('./lib/cloudcharge-config');
-const { pickConnectors } = require('./lib/connector-state');
+const { pickConnectorsFrom } = require('./lib/connector-state');
 
 // Hvilken app-plass Homey skal okkupere. CloudCharge tillater én aktiv sesjon
 // per app, så velger man den appen man ikke bruker på mobilen, slutter de to å
@@ -51,8 +51,12 @@ module.exports = {
     }
 
     try {
+      // Begge endepunktene, samme oppdagelse som paringen bruker. Med bare
+      // /mychargers meldte denne «kontoen har ingen ladere» for en konto der
+      // paringen fant laderen helt fint.
       const chargers = await client.getMyChargers();
-      const connectors = pickConnectors(chargers);
+      const priv = await client.getPrivateChargers().catch(() => null);
+      const connectors = pickConnectorsFrom(chargers, priv);
 
       return {
         ok: true,

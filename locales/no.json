@@ -15,7 +15,10 @@
     "clu_ambiguous_connector": "Laderen har flere ladepunkter, og appen vet ikke hvilket som hører til denne enheten.",
     "clu_bad_pin": "Laderen godtok ikke PIN-koden. Sjekk PIN for konfiguratoren i enhetsinnstillingene.",
     "clu_unreachable": "Får ikke kontakt med laderen på det lokale nettverket. Sjekk IP-adressen i enhetsinnstillingene.",
-    "start_forbidden": "CloudCharge avviste å starte lading. Sjekk at laderen er delt med kontoen din og at bilen står tilkoblet."
+    "start_forbidden": "CloudCharge avviste å starte lading. Sjekk at laderen er delt med kontoen din og at bilen står tilkoblet.",
+    "eco_read_failed": "Kunne ikke lese gjeldende eco-oppsett fra CloudCharge, så ingenting ble endret. Prøv igjen om litt.",
+    "clu_refused": "Laderen avviste forespørselen. Prøv igjen om litt, og sjekk PIN for konfiguratoren hvis det gjentar seg.",
+    "clu_write_uncertain": "Laderen svarte ikke i tid, så det er uklart om endringen ble utført. Sjekk laderen før du prøver igjen — appen gjentar ikke skrivingen av seg selv."
   },
   "pair": {
     "errors": {
@@ -24,7 +27,8 @@
       "no_login_attempt": "Det ligger ingen kode og venter for dette nummeret. Be om en ny.",
       "invalid_dev_token": "CloudCharge avviste app-identiteten.",
       "unauthorized": "CloudCharge avviste innloggingen.",
-      "no_phone": "Start på nytt og skriv inn mobilnummeret først."
+      "no_phone": "Start på nytt og skriv inn mobilnummeret først.",
+      "all_paired": "Alle laderne på denne kontoen er allerede lagt til i Homey. Kom du hit for å logge inn på nytt, er det gjort — laderen kommer tilbake av seg selv."
     }
   }
 }

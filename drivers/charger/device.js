@@ -1,7 +1,13 @@
 'use strict';
 
 const Homey = require('homey');
-const { toCapabilityValues, isCharging } = require('../../lib/connector-state');
+const {
+  toCapabilityValues,
+  isCharging,
+  isOperationalData,
+  currentAlternatives,
+  currentFromChargePoint,
+} = require('../../lib/connector-state');
 const { CluClient } = require('../../lib/clu-client');
 const {
   resolveCurrentLimits,
@@ -29,6 +35,11 @@ const ECO_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
 const CLU_CAPABILITIES = ['defa_charge_current', 'defa_plug_and_charge', 'defa_charge_offline'];
 const CLU_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
 
+// Plug & Charge og offline-lading finnes bare i laderens egen konfigurator.
+// Ladestrøm derimot kan noen ladere sette gjennom skyen, så den kapabiliteten
+// har to mulige eiere og skal ikke fjernes bare fordi CLU-en er av.
+const CLU_ONLY_CAPABILITIES = ['defa_plug_and_charge', 'defa_charge_offline'];
+
 class DefaChargerDevice extends Homey.Device {
   async onInit() {
     const store = this.getStore();
@@ -45,7 +56,9 @@ class DefaChargerDevice extends Homey.Device {
     this._nextPollAt = 0;
     this._lastUpdateWrittenAt = 0;
     this._timeFormatter = null;
+    this._dateFormatter = null;
     this._ecoRefreshedAt = 0;
+    this._ecoWriteSeq = 0;
     // «Støttes ikke» huskes over restarter — OOM-killeren restarter appen
     // ofte nok til at det ellers koster ett bortkastet skykall hver gang.
     this._ecoSupported = this.getStoreValue('ecoUnsupported') !== true;
@@ -55,6 +68,12 @@ class DefaChargerDevice extends Homey.Device {
     this._cluWriteSeq = 0;
     this._cluSnapshot = null;
     this._cluListenerRegistered = false;
+    this._currentListenerRegistered = false;
+    this._cloudCurrent = null;
+    this._cloudCurrentRefreshedAt = 0;
+    // Som eco: «støttes ikke» huskes over restarter, så vi slipper ett
+    // bortkastet skykall hver gang appen starter.
+    this._cloudCurrentSupported = this.getStoreValue('cloudCurrentUnsupported') !== true;
 
     if (!this._alias) {
       // Uten alias virker verken start eller stopp. Det skal ikke kunne skje
@@ -161,6 +180,14 @@ class DefaChargerDevice extends Homey.Device {
 
     try {
       const data = await this.client().getOperationalData(this._connectorId);
+
+      // Et 200-svar uten brukbar kropp er ikke en tilstand — det er en feil.
+      // Behandles den som tilstand, melder laderen «frakoblet, ingen feil» og
+      // fyrer flow-triggere midt i en pågående ladeøkt.
+      if (!isOperationalData(data)) {
+        throw new Error(`CloudCharge svarte 200 uten brukbare data (${typeof data})`);
+      }
+
       const values = toCapabilityValues(data);
 
       await this.applyValues(values);
@@ -170,6 +197,7 @@ class DefaChargerDevice extends Homey.Device {
       if (!this.getAvailable()) await this.setAvailable();
       await this.maybeRefreshEcoMode();
       await this.refreshLocalSettings();
+      await this.syncCloudCurrent();
     } catch (error) {
       nextInterval = await this.handleError(error);
     } finally {
@@ -198,7 +226,17 @@ class DefaChargerDevice extends Homey.Device {
     let changed = false;
 
     for (const [capability, value] of Object.entries(values)) {
-      if (value === null || !this.hasCapability(capability)) continue;
+      // null betyr «laderen sa ingenting om dette». Da skrives ingenting, men
+      // den forrige verdien må bæres videre i applied — ellers glemmer
+      // _previous tilstanden, og neste ekte endring ser ut som ingen endring.
+      // Konkret: en feilkode som forsvant ut av ett svar gjorde at
+      // «feilen er borte» aldri fyrte når laderen etterpå meldte NoError.
+      if (value === null) {
+        applied[capability] = previous ? previous[capability] : null;
+        continue;
+      }
+
+      if (!this.hasCapability(capability)) continue;
       if (previous && previous[capability] === value) continue;
 
       // Rå API-strenger skal ikke vises i norsk UI. Diffing og flow-tokens
@@ -318,23 +356,53 @@ class DefaChargerDevice extends Homey.Device {
     return code;
   }
 
+  // Svaret på flow-betingelsen «laderen har feil».
+  //
+  // Må leses fra råverdien, ikke fra kapabiliteten: kapabiliteten inneholder
+  // den oversatte teksten fra errorCodeText(), så en sammenligning mot 'NoError'
+  // traff aldri. Betingelsen svarte derfor SANT alltid — også på en feilfri
+  // lader — og enhver flow bygget på den var permanent gal.
+  hasActiveError() {
+    const raw = this._previous && this._previous.defa_error_code;
+    if (typeof raw === 'string') return raw !== '' && raw !== 'NoError';
+
+    // Før første avlesning finnes ingen _previous. Da er den viste teksten det
+    // eneste vi har, og den sammenlignes mot den oversatte «ingen feil».
+    const shown = this.getCapabilityValue('defa_error_code');
+    if (typeof shown !== 'string' || shown === '') return false;
+    return shown !== this.homey.__('status.no_error') && shown !== 'NoError';
+  }
+
   timestamp() {
     try {
-      // Formattereren caches — toLocaleString bygger en ny Intl.DateTimeFormat
-      // ved hvert kall, en av de dyrere allokeringene i Node. Og språket
-      // følger Homey, ikke en hardkodet norsk locale.
-      if (!this._timeFormatter) {
+      // Formatterne caches — Intl.DateTimeFormat er en av de dyrere
+      // allokeringene i Node, og dette kjører ved hver endring. Språket følger
+      // Homey, ikke en hardkodet norsk locale.
+      //
+      // «18. aug, 20:32». Dato og klokkeslett formatteres hver for seg, fordi
+      // Intl ellers setter inn sitt eget skilletegn og gir «18. aug., 20:32»
+      // med punktum og komma rett etter hverandre. Punktumet i den norske
+      // månedsforkortelsen fjernes, siden kommaet tar den rollen her.
+      if (!this._dateFormatter) {
         const locale = this.homey.i18n.getLanguage() === 'no' ? 'nb-NO' : 'en-GB';
-        // Kort format: flisen kutter av alt lengre enn dette.
+        const timeZone = this.homey.clock.getTimezone();
+
+        this._dateFormatter = new Intl.DateTimeFormat(locale, {
+          timeZone,
+          day: 'numeric',
+          month: 'short',
+        });
         this._timeFormatter = new Intl.DateTimeFormat(locale, {
-          timeZone: this.homey.clock.getTimezone(),
-          day: '2-digit',
-          month: '2-digit',
+          timeZone,
           hour: '2-digit',
           minute: '2-digit',
         });
       }
-      return this._timeFormatter.format(new Date());
+
+      const now = new Date();
+      const date = this._dateFormatter.format(now).replace(/\.$/, '');
+
+      return `${date}, ${this._timeFormatter.format(now)}`;
     } catch (error) {
       return new Date().toISOString();
     }
@@ -382,9 +450,14 @@ class DefaChargerDevice extends Homey.Device {
     // på hver eneste polling — og dobler skytrafikken akkurat når API-et
     // allerede sliter.
     this._ecoRefreshedAt = Date.now();
+    const seqAtStart = this._ecoWriteSeq;
 
     try {
       const configuration = await this.client().getEcoModeConfiguration(this._connectorId);
+
+      // Rakk brukeren å skrive mens denne lesingen var underveis, er svaret
+      // foreldet i det det ankommer. Samme vakt som _cluWriteSeq.
+      if (seqAtStart !== this._ecoWriteSeq) return;
 
       if (configuration && typeof configuration.active === 'boolean') {
         await this.applyToggle('defa_eco_mode', 'defa_eco_mode_changed', configuration.active);
@@ -405,9 +478,27 @@ class DefaChargerDevice extends Homey.Device {
   async setEcoMode(active) {
     const client = this.client();
     const current = await client.getEcoModeConfiguration(this._connectorId);
-    const configuration = { ...(current || {}), active: Boolean(active) };
+
+    // Samme vakt som CLU-skrivingene har: vi sender hele konfigurasjonen
+    // tilbake, så vi må ha lest en fullstendig konfigurasjon først. Et 200-svar
+    // med tom kropp ga {active:true} alene og slettet tidsplanene; et svar som
+    // ikke var JSON ble spredd til indekserte tegnnøkler og sendt som
+    // konfigurasjon. Å nekte er alltid riktigere enn å skrive noe vi ikke leste.
+    //
+    // active må være en boolean: det er feltet vi endrer, og mangler det, har
+    // vi ikke lest en eco-konfigurasjon — bare et objekt. Samme predikat som
+    // maybeRefreshEcoMode() bruker for å tro på en lesing.
+    if (!isOperationalData(current) || typeof current.active !== 'boolean') {
+      throw new Error(this.homey.__('errors.eco_read_failed'));
+    }
+
+    const configuration = { ...current, active: Boolean(active) };
 
     await client.setEcoModeConfiguration(this._connectorId, configuration);
+
+    // Etter en skriving skal en lesing som alt var underveis ikke få lov til å
+    // sette verdien tilbake og fyre «eco-modus endret» på et gammelt svar.
+    this._ecoWriteSeq += 1;
     this._ecoRefreshedAt = Date.now();
 
     await this.setCapabilityValue('defa_eco_mode', Boolean(active)).catch(() => {});
@@ -448,14 +539,26 @@ class DefaChargerDevice extends Homey.Device {
     if (!enabled || !host || !pin) {
       this._clu = null;
 
-      for (const capability of CLU_CAPABILITIES) {
+      // defa_charge_current er ikke med her: klarer skyen å sette ladestrøm,
+      // skal skyveknappen bli stående selv om den lokale styringen er av.
+      // syncCloudCurrent() avgjør skjebnen dens.
+      for (const capability of CLU_ONLY_CAPABILITIES) {
         if (this.hasCapability(capability)) {
           await this.removeCapability(capability)
             .catch((error) => this.error(`Kunne ikke fjerne ${capability}`, error));
         }
       }
 
+      // Lytterne forsvinner med kapabilitetene. Uten dette ble flagget stående
+      // på true, og slo brukeren lokal styring av og på igjen, var skyveknappen
+      // der — men uten lytter, så ingenting skjedde når man dro i den.
+      this._cluListenerRegistered = false;
+
       if (enabled) this.log('Lokal strømstyring er på, men mangler adresse eller PIN');
+
+      // Uten CLU er skyen eneste mulige kilde til ladestrøm.
+      this._cloudCurrentRefreshedAt = 0;
+      await this.syncCloudCurrent();
       return;
     }
 
@@ -486,7 +589,6 @@ class DefaChargerDevice extends Homey.Device {
     // innstillingene endres.
     if (!this._cluListenerRegistered) {
       const listeners = {
-        defa_charge_current: (v) => this.setChargeCurrent(v),
         defa_plug_and_charge: (v) => this.setPlugAndCharge(v),
         defa_charge_offline: (v) => this.setChargeOffline(v),
       };
@@ -505,6 +607,7 @@ class DefaChargerDevice extends Homey.Device {
       this._cluListenerRegistered = true;
     }
 
+    this.registerCurrentListener();
     this.log(`Lokal strømstyring aktiv mot ${host}`);
     this._cluRefreshedAt = 0;
     await this.refreshLocalSettings(true);
@@ -559,6 +662,11 @@ class DefaChargerDevice extends Homey.Device {
         await this.setStoreValue('cluAddress', config.connectors[0].address).catch(() => {});
       }
 
+      // Sjekkes på nytt her: mellom lesingen over og skrivingene under ligger
+      // flere await, og en skriving som fullførte i mellomtiden ville ellers
+      // blitt overskrevet av verdiene vi leste før den.
+      if (seqAtStart !== this._cluWriteSeq) return;
+
       const amps = currentFromConfig(config);
       const plugAndCharge = plugAndChargeFromConfig(config, this.cluAddress());
       const offline = chargeOfflineFromConfig(config);
@@ -585,6 +693,116 @@ class DefaChargerDevice extends Homey.Device {
     }
   }
 
+  // --- Ladestrøm gjennom skyen -------------------------------------------
+  //
+  // Enkelte ladere kan sette ladestrøm via CloudCharge. Da trenger brukeren
+  // hverken IP-adresse eller PIN, og skyveknappen virker rett etter paring.
+  // Din egen lader svarer CAPABILITY_NOT_FOUND, og faller tilbake på CLU-en.
+
+  async syncCloudCurrent() {
+    // CLU-en eier ladestrømmen når den er satt opp — den er mer direkte, og
+    // brukeren har eksplisitt konfigurert den.
+    if (this._clu) return;
+
+    if (!this._cloudCurrentSupported) {
+      this._cloudCurrent = null;
+      if (this.hasCapability('defa_charge_current')) {
+        await this.removeCapability('defa_charge_current')
+          .catch((error) => this.error('Kunne ikke fjerne defa_charge_current', error.message));
+      }
+      return;
+    }
+
+    if (Date.now() - this._cloudCurrentRefreshedAt < CLU_REFRESH_INTERVAL_MS) return;
+
+    // Forsøkstidspunkt, ikke suksesstidspunkt — samme grunn som eco og CLU.
+    this._cloudCurrentRefreshedAt = Date.now();
+
+    let limits;
+    try {
+      limits = currentAlternatives(
+        await this.client().getMaxCurrentAlternatives(this._connectorId),
+      );
+    } catch (error) {
+      if (error.isUnsupported) {
+        this._cloudCurrentSupported = false;
+        this._cloudCurrent = null;
+        await this.setStoreValue('cloudCurrentUnsupported', true).catch(() => {});
+        this.log('Laderen kan ikke sette ladestrøm gjennom skyen — bruker lokal styring hvis den er satt opp');
+        await this.syncCloudCurrent();
+        return;
+      }
+      this.error('Kunne ikke lese ladestrømalternativer', error.message);
+      return;
+    }
+
+    if (!limits) {
+      this.error('Ladestrømalternativer kom tomme — hopper over');
+      return;
+    }
+
+    this._cloudCurrent = limits;
+
+    if (!this.hasCapability('defa_charge_current')) {
+      this.log('Legger til defa_charge_current (styres gjennom skyen)');
+      await this.addCapability('defa_charge_current')
+        .catch((error) => this.error('Kunne ikke legge til defa_charge_current', error.message));
+    }
+
+    await this.setCapabilityOptions('defa_charge_current', { min: limits.min, max: limits.max })
+      .catch(() => {});
+    this.registerCurrentListener();
+
+    // Gjeldende verdi ligger på ladepunktet, ikke i /operationaldata.
+    const chargePointId = this.getStoreValue('chargePointId');
+    if (!chargePointId) return;
+
+    try {
+      const amps = currentFromChargePoint(
+        await this.client().getChargePoint(chargePointId), this._connectorId,
+      );
+
+      if (amps !== null && this.getCapabilityValue('defa_charge_current') !== amps) {
+        await this.setCapabilityValue('defa_charge_current', amps)
+          .catch((error) => this.error('Kunne ikke sette defa_charge_current', error.message));
+      }
+    } catch (error) {
+      this.error('Kunne ikke lese gjeldende ladestrøm fra ladepunktet', error.message);
+    }
+  }
+
+  // Lytteren registreres én gang, uansett hvilken kilde som eier verdien.
+  registerCurrentListener() {
+    if (this._currentListenerRegistered) return;
+    try {
+      this.registerCapabilityListener('defa_charge_current', (value) => this.setChargeCurrent(value));
+      this._currentListenerRegistered = true;
+    } catch (error) {
+      this.error('Kunne ikke registrere lytter for defa_charge_current', error.message);
+    }
+  }
+
+  async setChargeCurrentCloud(amps) {
+    const limits = this._cloudCurrent;
+    const requested = Math.round(Number(amps));
+
+    if (!Number.isFinite(requested)) {
+      throw new Error(this.homey.__('errors.current_not_integer'));
+    }
+
+    if (limits && (requested < limits.min || requested > limits.max)) {
+      throw new Error(this.homey.__('errors.current_out_of_range', {
+        min: limits.min, max: limits.max,
+      }));
+    }
+
+    await this.client().setMaxCurrent(this._connectorId, requested);
+    await this.setCapabilityValue('defa_charge_current', requested).catch(() => {});
+    this.log(`Ladestrøm satt til ${requested} A gjennom skyen`);
+
+    return { changed: true, amps: requested };
+  }
+
   writeOptions() {
     return { expected: this.getStoreValue('cluBaseline') || null };
   }
@@ -607,6 +825,12 @@ class DefaChargerDevice extends Homey.Device {
       no_cookie: 'errors.clu_bad_pin',
       no_host: 'errors.clu_unreachable',
       invalid_json: 'errors.clu_unreachable',
+      unreachable: 'errors.clu_unreachable',
+      write_uncertain: 'errors.clu_write_uncertain',
+      no_pin: 'errors.clu_bad_pin',
+      // Ikke clu_unreachable: en HTTP-feil betyr at vi NÅDDE laderen og den
+      // svarte. Å be brukeren sjekke IP-adressen ville vært direkte feilaktig.
+      http_error: 'errors.clu_refused',
     };
 
     const key = keys[code];
@@ -623,7 +847,15 @@ class DefaChargerDevice extends Homey.Device {
     return new Error(this.homey.__(key));
   }
 
+  // Én inngang for både kapabiliteten og Flow-kortet. Hvilken vei den går,
+  // avhenger av hva denne laderen faktisk støtter.
   async setChargeCurrent(amps) {
+    if (this._clu) return this.setChargeCurrentLocal(amps);
+    if (this._cloudCurrent) return this.setChargeCurrentCloud(amps);
+    throw new Error(this.homey.__('errors.local_disabled'));
+  }
+
+  async setChargeCurrentLocal(amps) {
     if (!this._clu) throw new Error(this.homey.__('errors.local_disabled'));
 
     let result;

@@ -177,3 +177,57 @@ test('app icon and driver icon are not the same file', () => {
   // Homey: «Do not re-use the app icon for your drivers.»
   assert.notStrictEqual(appIcon, driverIcon);
 });
+
+// --- Krav som bare `validate --level verified` fanger ---------------------
+//
+// `npm test` kjøres langt oftere enn verified-valideringen, og disse tre
+// manglet da auditen startet: uten dem feilet verified-nivået.
+
+test('the driver declares platforms and connectivity', () => {
+  assert.deepStrictEqual(driver.platforms, ['local']);
+  // Skyen er hovedveien; LAN er den valgfrie lokale strømstyringen.
+  assert.ok(Array.isArray(driver.connectivity));
+  assert.ok(driver.connectivity.includes('cloud'));
+  assert.ok(driver.connectivity.includes('lan'));
+});
+
+test('every flow argument except device has a bilingual title', () => {
+  for (const kind of ['triggers', 'conditions', 'actions']) {
+    for (const card of cards[kind]) {
+      for (const arg of card.args || []) {
+        // device-argumentet får tittel av Homey selv.
+        if (arg.name === 'device') continue;
+        assert.ok(arg.title, `${card.id}.${arg.name} mangler title`);
+        assert.ok(arg.title.en, `${card.id}.${arg.name} mangler engelsk title`);
+        assert.ok(arg.title.no, `${card.id}.${arg.name} mangler norsk title`);
+      }
+    }
+  }
+});
+
+test('every error key the code looks up exists in both languages', () => {
+  // localizeCluError() og de nye kastene slår opp disse. En manglende nøkkel
+  // gir brukeren nøkkelnavnet i UI-et, og ingen validering fanger det.
+  const keys = [
+    'errors.current_out_of_range',
+    'errors.current_not_integer',
+    'errors.clu_incomplete_config',
+    'errors.clu_config_changed',
+    'errors.clu_ambiguous_connector',
+    'errors.clu_bad_pin',
+    'errors.clu_unreachable',
+    'errors.clu_refused',
+    'errors.eco_read_failed',
+    'errors.missing_alias',
+    'errors.local_disabled',
+    'errors.session_expired',
+    'pair.errors.all_paired',
+  ];
+
+  const get = (object, path) => path.split('.').reduce((at, key) => at && at[key], object);
+
+  for (const key of keys) {
+    assert.ok(get(en, key), `mangler i en.json: ${key}`);
+    assert.ok(get(no, key), `mangler i no.json: ${key}`);
+  }
+});

@@ -1,8 +1,9 @@
 'use strict';
 
 const Homey = require('homey');
-const { pickConnectors } = require('../../lib/connector-state');
+const { pickConnectorsFrom } = require('../../lib/connector-state');
 const {
+  DEFAULT_DEV_TOKEN,
   isValidPhoneNumber,
   isValidSmsCode,
   normalizePhoneNumber,
@@ -10,13 +11,16 @@ const {
 
 // Formen på et API-svar for diagnostikk: nøkkelnavn og antall, aldri verdier,
 // siden svarene inneholder tokens. Vises i paringsskjermen ved tomt resultat.
+// Teksten her er teknisk og med vilje engelsk: den vises i paringsvisningen på
+// alle språk, og skal kopieres inn i en feilrapport. «(ingenting)» hjalp ingen.
 function describeShape(payload) {
+  if (payload === null || payload === undefined) return '(empty)';
   if (Array.isArray(payload)) return `[${payload.length}]`;
-  if (!payload || typeof payload !== 'object') return `(${typeof payload})`;
+  if (typeof payload !== 'object') return `(${typeof payload})`;
   const shape = Object.entries(payload)
     .map(([key, value]) => (Array.isArray(value) ? `${key}[${value.length}]` : key))
     .join(' ');
-  return shape || '(tomt objekt)';
+  return shape || '(no fields)';
 }
 
 // CloudCharge-feilkoder oversatt til noe paringsdialogen kan vise.
@@ -68,7 +72,12 @@ class DefaChargerDriver extends Homey.Driver {
       phoneNumber = normalizePhoneNumber(phone);
 
       try {
-        await this.homey.app.getClient().sendSmsCode(phoneNumber);
+        // Alltid DEFA Power-tokenet, aldri det lagrede. CloudCharge-tokenet
+        // svarer 200 OK og oppretter en gyldig loginAttempt, men SMS-en kommer
+        // aldri fram — så en bruker som hadde valgt CloudCharge-plassen fikk
+        // «kode sendt» og ventet forgjeves. Innløsningen under bruker fortsatt
+        // den valgte plassen; det er hele poenget med å skille de to.
+        await this.homey.app.getClient().sendSmsCode(phoneNumber, DEFAULT_DEV_TOKEN);
       } catch (error) {
         throw this.translate(error);
       }
@@ -132,7 +141,7 @@ class DefaChargerDriver extends Homey.Driver {
     }
 
     let priv = null;
-    let privShape = 'feilet';
+    let privShape = '(failed)';
     try {
       priv = await client.getPrivateChargers();
       privShape = describeShape(priv);
@@ -140,21 +149,30 @@ class DefaChargerDriver extends Homey.Driver {
       this.error('/chargers/private feilet', error.code || '', error.message);
     }
 
-    const seen = new Set();
-    const connectors = [...pickConnectors(chargers), ...pickConnectors(priv)]
-      .filter((connector) => {
-        if (seen.has(connector.id)) return false;
-        seen.add(connector.id);
-        return true;
-      });
+    const found = pickConnectorsFrom(chargers, priv);
 
-    this.log(`Fant ${connectors.length} ladepunkt(er) — mychargers: ${describeShape(chargers)}, private: ${privShape}`);
+    // Homeys egen list_devices-mal filtrerer bort alt som alt er lagt til. Vi
+    // bygger lista selv, så filtreringen må gjøres her — ellers kan samme lader
+    // legges til to ganger.
+    const paired = new Set(this.getDevices().map((device) => device.getData().id));
+    const connectors = found.filter((connector) => !paired.has(connector.id));
 
-    // Kun formen på svarene tas vare på — nøkkelnavn og antall, aldri verdier,
-    // siden svarene inneholder tokens.
-    this._lastEmptyShape = connectors.length === 0
+    this.log(
+      `Fant ${found.length} ladepunkt(er), ${connectors.length} ikke lagt til ennå — `
+      + `mychargers: ${describeShape(chargers)}, private: ${privShape}`,
+    );
+
+    // Formen tas bare vare på når kontoen faktisk ikke ga noen ladere. Var det
+    // filtreringen over som tømte lista, er det ikke noe galt å diagnostisere.
+    this._lastEmptyShape = found.length === 0
       ? `mychargers: ${describeShape(chargers)} | private: ${privShape}`
       : null;
+
+    // «Kontoen har ingen ladere» ville vært direkte feil her. Visningen viser
+    // feilmeldinger i rødt allerede, så den sanne beskjeden går den veien.
+    if (found.length > 0 && connectors.length === 0) {
+      throw new Error(this.homey.__('pair.errors.all_paired'));
+    }
 
     return connectors.map((connector) => ({
       name: connector.name,

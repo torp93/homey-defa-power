@@ -1,6 +1,6 @@
 {
   "id": "com.thomastorp.defa-power",
-  "version": "1.1.6",
+  "version": "1.1.8",
   "compatibility": ">=12.4.5",
   "sdk": 3,
   "platforms": [
@@ -749,7 +749,11 @@
                   "no": "av"
                 }
               }
-            ]
+            ],
+            "title": {
+              "en": "State",
+              "no": "Tilstand"
+            }
           }
         ]
       },
@@ -809,7 +813,11 @@
                   "no": "hard"
                 }
               }
-            ]
+            ],
+            "title": {
+              "en": "Reset type",
+              "no": "Type restart"
+            }
           }
         ]
       },
@@ -856,6 +864,10 @@
             "placeholder": {
               "en": "Amps",
               "no": "Ampere"
+            },
+            "title": {
+              "en": "Current",
+              "no": "Ladestrøm"
             }
           }
         ]
@@ -898,7 +910,11 @@
                   "no": "av"
                 }
               }
-            ]
+            ],
+            "title": {
+              "en": "State",
+              "no": "Tilstand"
+            }
           }
         ]
       },
@@ -940,7 +956,11 @@
                   "no": "av"
                 }
               }
-            ]
+            ],
+            "title": {
+              "en": "State",
+              "no": "Tilstand"
+            }
           }
         ]
       }
@@ -949,6 +969,13 @@
   "drivers": [
     {
       "id": "charger",
+      "platforms": [
+        "local"
+      ],
+      "connectivity": [
+        "cloud",
+        "lan"
+      ],
       "name": {
         "en": "DEFA Power charger",
         "no": "DEFA Power-lader"

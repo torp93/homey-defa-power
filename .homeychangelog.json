@@ -1,4 +1,12 @@
 {
+  "1.1.8": {
+    "en": "Signing in is more reliable: the login steps now stay on the same CloudCharge server, which is what caused \"no code is pending\" on a code that had just arrived. Chargers that support it can now set the charging current straight through CloudCharge, with no IP address or PIN needed. The last-update time is easier to read. New device icon, drawn from DEFA's own line art of the charger.",
+    "no": "Innlogging er mer pålitelig: stegene holder seg nå på samme CloudCharge-server, som var årsaken til «ingen kode venter» på en kode som nettopp hadde kommet. Ladere som støtter det kan nå sette ladestrømmen rett gjennom CloudCharge, uten IP-adresse eller PIN. Tidspunktet for siste oppdatering er lettere å lese. Nytt enhetsikon, tegnet etter DEFAs egen strektegning av laderen."
+  },
+  "1.1.7": {
+    "en": "Reliability fixes. The condition \"the charger has an error\" answered yes even on a fault-free charger. A broken reply from CloudCharge no longer reads as an unplugged car with no error, and no longer triggers Flows by mistake. Turning eco mode on or off can no longer clear your charging schedules. Pairing now always sends the code the SMS is actually delivered for, and only lists chargers you have not added yet. Local charger errors are shown in your own language.",
+    "no": "Rettelser for pålitelighet. Betingelsen «laderen har feil» svarte ja også på en feilfri lader. Et ødelagt svar fra CloudCharge leses ikke lenger som at bilen er koblet fra uten feil, og utløser ikke lenger Flows ved en feil. Å slå eco-modus av eller på kan ikke lenger slette ladetidsplanene dine. Paringen sender nå alltid koden SMS-en faktisk leveres for, og lister bare ladere du ikke har lagt til ennå. Feil fra laderen på lokalnettet vises på ditt eget språk."
+  },
   "1.1.6": {
     "en": "Chargers you own are now found through CloudCharge's private charger list as well, which is where they live for accounts that came up empty before.",
     "no": "Ladere du eier finnes nå også gjennom CloudCharges private laderliste, som er der de ligger for kontoer som tidligere kom opp tomme."

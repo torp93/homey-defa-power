@@ -156,3 +156,55 @@ test('backoff tolerates nonsense input', () => {
   assert.strictEqual(backoffSeconds(60, 0), 60);
   assert.strictEqual(backoffSeconds(undefined, undefined), 60);
 });
+
+// --- «Feilen er borte» må ikke fyre på manglende data --------------------
+//
+// defa_error_code er null når CloudCharge svarte uten errorCode-feltet. Da vet
+// vi ingenting om feiltilstanden. En flow som varsler «feilen er borte» er et
+// varsel brukeren handler på, så den skal bare fyre når laderen faktisk sa det.
+
+test('a missing error code does not fire "error cleared"', () => {
+  const withError = { defa_error_code: 'GroundFailure', defa_status: 'faulted' };
+  const unknown = { defa_error_code: null, defa_status: 'faulted' };
+
+  const ids = detectTransitions(withError, unknown).map((event) => event.id);
+  assert.ok(!ids.includes('defa_error_cleared'), `fyrte likevel: ${ids.join(', ')}`);
+
+  // Og feltet helt fraværende, ikke bare null.
+  const absent = detectTransitions(withError, { defa_status: 'faulted' }).map((e) => e.id);
+  assert.ok(!absent.includes('defa_error_cleared'), `fyrte likevel: ${absent.join(', ')}`);
+});
+
+test('a real recovery still fires "error cleared"', () => {
+  const withError = { defa_error_code: 'GroundFailure', defa_status: 'faulted' };
+  const recovered = { defa_error_code: 'NoError', defa_status: 'available' };
+
+  const ids = detectTransitions(withError, recovered).map((event) => event.id);
+  assert.ok(ids.includes('defa_error_cleared'), `manglet: ${ids.join(', ')}`);
+});
+
+test('an error survives a poll that omitted the field, so recovery still fires', () => {
+  // Regresjon fra denne auditen: da defa_error_code ble null ved manglende
+  // felt, mistet _previous feiltilstanden, og «feilen er borte» fyrte aldri
+  // når laderen etterpå faktisk meldte NoError. Dette gjenskaper hvordan
+  // device.applyValues() nå bærer en null-verdi videre.
+  const carryForward = (previous, values) => {
+    const applied = { ...values };
+    for (const [key, value] of Object.entries(values)) {
+      if (value === null) applied[key] = previous ? previous[key] : null;
+    }
+    return applied;
+  };
+
+  const withError = { defa_error_code: 'GroundFailure', defa_status: 'faulted' };
+  const unknown = { defa_error_code: null, defa_status: 'faulted' };
+  const recovered = { defa_error_code: 'NoError', defa_status: 'available' };
+
+  // Steg 1: feltet mangler. Ingen trigger, og feilen huskes.
+  assert.ok(!detectTransitions(withError, unknown).some((e) => e.id === 'defa_error_cleared'));
+  const previous = carryForward(withError, unknown);
+  assert.strictEqual(previous.defa_error_code, 'GroundFailure', 'feilen må huskes');
+
+  // Steg 2: laderen melder faktisk at feilen er borte. Nå skal den fyre.
+  assert.ok(detectTransitions(previous, recovered).some((e) => e.id === 'defa_error_cleared'));
+});

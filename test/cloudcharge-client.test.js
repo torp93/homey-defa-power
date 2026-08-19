@@ -197,3 +197,83 @@ test('concurrent callers are serialized instead of bursting', async () => {
 
   assert.deepStrictEqual(startedAt, [0, 1000, 2000]);
 });
+
+// --- INGRESSCOOKIE: hele innloggingen må treffe samme server -------------
+//
+// CloudCharge kjører på flere servere bak en lastbalanserer. loginAttempt-en
+// /prelogin oppretter, finnes bare på serveren som håndterte den, så treffer
+// /login en annen server svarer den «No loginAttempts found». Cookien er det
+// eneste som holder kallene på samme server.
+
+test('a Set-Cookie from prelogin is sent back on the next request', () => {
+  const { client, calls } = stubClient([
+    { status: 200, body: '{}', headers: { 'set-cookie': ['INGRESSCOOKIE=abc123; Path=/; HttpOnly'] } },
+    { status: 200, body: '{"id":"u","token":"t"}', headers: {} },
+  ]);
+
+  return client.sendSmsCode('90000000')
+    .then(() => client.loginWithCode('90000000', '123456'))
+    .then(() => {
+      assert.strictEqual(calls.length, 2);
+      assert.ok(!calls[0].headers.Cookie, 'første kall har ingen cookie ennå');
+      assert.strictEqual(calls[1].headers.Cookie, 'INGRESSCOOKIE=abc123',
+        'andre kall må bære cookien, ellers treffer /login en annen server');
+    });
+});
+
+test('several cookies are kept, and a re-issued one replaces the old value', async () => {
+  const { client, calls } = stubClient([
+    { status: 200, body: '{}', headers: { 'set-cookie': ['A=1; Path=/', 'B=2'] } },
+    { status: 200, body: '{}', headers: { 'set-cookie': ['A=9'] } },
+    { status: 200, body: '{}', headers: {} },
+  ]);
+
+  client.setSession({ userId: 'u', token: 't' });
+  await client.getMyChargers();
+  await client.getMyChargers();
+  await client.getMyChargers();
+
+  assert.strictEqual(calls[1].headers.Cookie, 'A=1; B=2');
+  assert.strictEqual(calls[2].headers.Cookie, 'A=9; B=2', 'A skal være oppdatert, B beholdt');
+});
+
+test('a response without Set-Cookie does not wipe what we already have', async () => {
+  const { client, calls } = stubClient([
+    { status: 200, body: '{}', headers: { 'set-cookie': ['INGRESSCOOKIE=keep'] } },
+    { status: 200, body: '{}', headers: undefined },
+    { status: 200, body: '{}', headers: {} },
+  ]);
+
+  client.setSession({ userId: 'u', token: 't' });
+  await client.getMyChargers();
+  await client.getMyChargers();
+  await client.getMyChargers();
+
+  assert.strictEqual(calls[2].headers.Cookie, 'INGRESSCOOKIE=keep');
+});
+
+// --- Skybasert ladestrøm -------------------------------------------------
+
+test('the cloud current endpoints use the shapes the API expects', async () => {
+  const { client, calls } = stubClient({ status: 200, body: '{}' });
+  client.setSession({ userId: 'u', token: 't' });
+
+  await client.getMaxCurrentAlternatives('conn-1');
+  assert.ok(calls[0].url.endsWith('/connector/conn-1/maxcurrent/alternatives'));
+  assert.strictEqual(calls[0].method, 'GET');
+
+  // Ampere går som query-parameter, ikke i kroppen.
+  await client.setMaxCurrent('conn-1', 16);
+  assert.ok(calls[1].url.endsWith('/connector/conn-1/maxcurrent?current=16'), calls[1].url);
+  assert.strictEqual(calls[1].method, 'POST');
+
+  // Desimaler avrundes — API-et vil ha et heltall.
+  await client.setMaxCurrent('conn-1', 15.6);
+  assert.ok(calls[2].url.endsWith('?current=16'), calls[2].url);
+
+  // chargePointId sendes som «token», som er navnet API-et bruker. Det er en
+  // ladepunkt-id, ikke et sikkerhetstoken.
+  await client.getChargePoint('cp-1');
+  assert.strictEqual(calls[3].method, 'POST');
+  assert.deepStrictEqual(JSON.parse(calls[3].body), { token: 'cp-1' });
+});
