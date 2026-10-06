@@ -11,6 +11,7 @@ const {
 const { CluClient } = require('../../lib/clu-client');
 const {
   resolveCurrentLimits,
+  connectorMaxFromConfig,
   currentFromConfig,
   plugAndChargeFromConfig,
   chargeOfflineFromConfig,
@@ -569,6 +570,7 @@ class DefaChargerDevice extends Homey.Device {
     if (lastHost && lastHost !== host) {
       this.log(`CLU-adressen endret (${lastHost} → ${host}) — nullstiller installasjonsreferansen`);
       await this.unsetStoreValue('cluBaseline').catch(() => {});
+      await this.unsetStoreValue('cluConnectorMax').catch(() => {});
       await this.unsetStoreValue('cluAddress').catch(() => {});
     }
     await this.setStoreValue('cluHost', host).catch(() => {});
@@ -640,7 +642,21 @@ class DefaChargerDevice extends Homey.Device {
       // Skyveknappen skal ikke tilby mer enn anlegget tåler. Grensene tas vare
       // på, slik at et Flow-kort som sender en for høy verdi kan si nøyaktig
       // hva denne installasjonen tillater.
-      const limits = resolveCurrentLimits(config);
+      // Connector-feltets opprinnelige verdi er taket vi aldri går over. Den
+      // kan være satt av montøren etter kabeltverrsnitt, så den lagres første
+      // gang vi ser en fullstendig konfigurasjon og brukes som referanse
+      // etterpå — ellers ville en tidligere 6 A-skriving blitt lest som det
+      // nye taket, og brukeren kom aldri opp igjen.
+      if (this.getStoreValue('cluConnectorMax') === undefined
+        || this.getStoreValue('cluConnectorMax') === null) {
+        const observert = connectorMaxFromConfig(config);
+        if (observert !== null) {
+          await this.setStoreValue('cluConnectorMax', observert).catch(() => {});
+          this.log(`Lagret connector-tak: ${observert} A`);
+        }
+      }
+
+      const limits = resolveCurrentLimits(config, this.getStoreValue('cluConnectorMax'));
       this._cluLimits = limits;
       await this.setCapabilityOptions('defa_charge_current', { min: limits.min, max: limits.max })
         .catch(() => {});
@@ -804,7 +820,10 @@ class DefaChargerDevice extends Homey.Device {
   }
 
   writeOptions() {
-    return { expected: this.getStoreValue('cluBaseline') || null };
+    return {
+      expected: this.getStoreValue('cluBaseline') || null,
+      ceiling: this.getStoreValue('cluConnectorMax'),
+    };
   }
 
   // Feilene fra lib/ er engelskfrie koder med detaljer; her får de en

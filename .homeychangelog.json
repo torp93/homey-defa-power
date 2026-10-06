@@ -1,4 +1,8 @@
 {
+  "1.1.9": {
+    "en": "The charging current can now go down to 6 A. The charger's own total-current field stops at 7 A, so below that the app sets the per-outlet limit instead, which the charger allows down to 6. Useful when charging from solar. The limit your electrician set is never raised.",
+    "no": "Ladestrømmen kan nå settes helt ned til 6 A. Laderens eget felt for total strøm stopper på 7 A, så under det settes grensen per uttak i stedet, som laderen tillater ned til 6. Nyttig når du lader fra solceller. Grensen elektrikeren har satt heves aldri."
+  },
   "1.1.8": {
     "en": "Signing in is more reliable: the login steps now stay on the same CloudCharge server, which is what caused \"no code is pending\" on a code that had just arrived. Chargers that support it can now set the charging current straight through CloudCharge, with no IP address or PIN needed. The last-update time is easier to read. New device icon, drawn from DEFA's own line art of the charger.",
     "no": "Innlogging er mer pålitelig: stegene holder seg nå på samme CloudCharge-server, som var årsaken til «ingen kode venter» på en kode som nettopp hadde kommet. Ladere som støtter det kan nå sette ladestrømmen rett gjennom CloudCharge, uten IP-adresse eller PIN. Tidspunktet for siste oppdatering er lettere å lese. Nytt enhetsikon, tegnet etter DEFAs egen strektegning av laderen."

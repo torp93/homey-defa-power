@@ -1,6 +1,6 @@
 {
   "id": "com.thomastorp.defa-power",
-  "version": "1.1.8",
+  "version": "1.1.9",
   "compatibility": ">=12.4.5",
   "sdk": 3,
   "platforms": [
@@ -315,7 +315,7 @@
         "en": "A",
         "no": "A"
       },
-      "min": 7,
+      "min": 6,
       "max": 32,
       "step": 1,
       "decimals": 0
@@ -858,7 +858,7 @@
           {
             "name": "amps",
             "type": "number",
-            "min": 7,
+            "min": 6,
             "max": 32,
             "step": 1,
             "placeholder": {

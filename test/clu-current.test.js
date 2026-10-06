@@ -5,6 +5,7 @@ const assert = require('node:assert');
 
 const {
   TOTAL_MIN_AMPS,
+  CONNECTOR_MIN_AMPS,
   CluConfigError,
   parseFuseSize,
   isUsableConfig,
@@ -47,8 +48,9 @@ test('parseFuseSize reads the number out of the label', () => {
 test('resolveCurrentLimits is capped by the connector, not just the fuse', () => {
   // Hovedsikringen er 63 A, men ladepunktet tåler 32 A. Å tilby 63 A i Homey
   // ville vært en løgn — det gir ingen effekt.
-  const limits = resolveCurrentLimits(CONFIG);
-  assert.strictEqual(limits.min, TOTAL_MIN_AMPS);
+  const limits = resolveCurrentLimits(CONFIG, 32);
+  // Gulvet er 6, ikke 7: under totalfeltets minimum styres connector-feltet.
+  assert.strictEqual(limits.min, CONNECTOR_MIN_AMPS);
   assert.strictEqual(limits.max, 32);
   assert.strictEqual(limits.fuse, 63);
   assert.strictEqual(limits.connectorMax, 32);
@@ -81,6 +83,9 @@ test('isUsableConfig demands the installation parameters', () => {
 });
 
 test('applyCurrent changes only the charging current', () => {
+  // Installasjonsparameterne skal aldri røres. Fra og med 6 A-støtten skrives
+  // connectors[].maxCurrent også — men KUN det feltet; resten av
+  // connector-blokka må stå nøyaktig som den var.
   const next = applyCurrent(CONFIG, 10);
 
   assert.strictEqual(next.maxTotalChargeCurrent, 10);
@@ -88,7 +93,50 @@ test('applyCurrent changes only the charging current', () => {
   assert.strictEqual(next.homeFuseSize, '63A');
   assert.strictEqual(next.connector1Phase, 'L1-L2');
   assert.strictEqual(next.chargePointType, 'Single-phase only');
-  assert.deepStrictEqual(next.connectors, CONFIG.connectors);
+
+  assert.strictEqual(next.connectors.length, CONFIG.connectors.length);
+  next.connectors.forEach((connector, i) => {
+    const { maxCurrent, ...resten } = connector;
+    const { maxCurrent: _, ...forventet } = CONFIG.connectors[i];
+    assert.deepStrictEqual(resten, forventet, 'kun maxCurrent skal endres');
+  });
+});
+
+test('6 A is reached through the connector field, not the total', () => {
+  // Totalfeltet nekter under 7 A. Connector-feltet gar til 6, og effektiv
+  // strom er den laveste av de to — det er hele veien under 7.
+  const next = applyCurrent(CONFIG, 6, 32);
+
+  assert.strictEqual(next.maxTotalChargeCurrent, CONFIG.maxTotalChargeCurrent,
+    'totalfeltet skal sta urort under 7 A');
+  assert.strictEqual(next.connectors[0].maxCurrent, 6);
+  assert.strictEqual(currentFromConfig(next), 6, 'effektiv strom');
+});
+
+test('going back above 7 A restores the connector ceiling', () => {
+  // Uten dette ville en tidligere 6 A-skriving holdt strommen nede for alltid.
+  const etter6 = applyCurrent(CONFIG, 6, 32);
+  const tilbake = applyCurrent(etter6, 16, 32);
+
+  assert.strictEqual(tilbake.maxTotalChargeCurrent, 16);
+  assert.strictEqual(tilbake.connectors[0].maxCurrent, 32, 'taket gjenopprettes');
+  assert.strictEqual(currentFromConfig(tilbake), 16);
+});
+
+test('the connector field is never raised above the installer ceiling', () => {
+  // Star den pa 16 fordi kabelen taler 16, skal ingen flow kunne gjore den
+  // til 32. Dette er den viktigste vakten i hele 6 A-stotten.
+  const kabel = { ...CONFIG, connectors: [{ ...CONFIG.connectors[0], maxCurrent: 16 }] };
+
+  assert.throws(() => applyCurrent(kabel, 32, 16), (e) => e.code === 'out_of_range');
+
+  const satt = applyCurrent(kabel, 16, 16);
+  assert.strictEqual(satt.connectors[0].maxCurrent, 16);
+
+  // Og selv om taket leses fra en konfigurasjon som alt er senket til 6,
+  // skal det lagrede taket vinne — ikke den senkede verdien.
+  const senket = { ...CONFIG, connectors: [{ ...CONFIG.connectors[0], maxCurrent: 6 }] };
+  assert.strictEqual(applyCurrent(senket, 16, 16).connectors[0].maxCurrent, 16);
 });
 
 test('applyCurrent sends a number, matching the configurator', () => {
@@ -105,7 +153,7 @@ test('applyCurrent refuses to write an incomplete config', () => {
 });
 
 test('applyCurrent enforces the schema bounds', () => {
-  assert.throws(() => applyCurrent(CONFIG, 6), (e) => e.code === 'out_of_range');
+  assert.throws(() => applyCurrent(CONFIG, 5, 32), (e) => e.code === 'out_of_range');
   assert.throws(() => applyCurrent(CONFIG, 33), (e) => e.code === 'out_of_range');
   assert.throws(() => applyCurrent(CONFIG, 10.5), (e) => e.code === 'not_integer');
   assert.throws(() => applyCurrent(CONFIG, 'abc'), (e) => e.code === 'not_integer');
@@ -137,4 +185,11 @@ test('assertMatchesExpected blocks a write when the installation changed', () =>
 
 test('assertMatchesExpected is a no-op without a baseline', () => {
   assert.doesNotThrow(() => assertMatchesExpected(CONFIG, null));
+});
+
+test('6 A is refused when the ceiling is unknown', () => {
+  // Uten et lagret tak ville 6 A vaert en enveisdor: neste avlesning hadde
+  // lest 6 som det nye taket. Da nekter vi heller, og gulvet er 7 som for.
+  assert.strictEqual(resolveCurrentLimits(CONFIG).min, TOTAL_MIN_AMPS);
+  assert.throws(() => applyCurrent(CONFIG, 6), (e) => e.code === 'out_of_range');
 });
